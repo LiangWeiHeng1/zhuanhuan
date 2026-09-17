@@ -1,0 +1,267 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create Android project
+        run: |
+          mkdir -p app/src/main/assets
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          mkdir -p gradle/wrapper
+          cp index.html app/src/main/assets/
+
+      - name: Setup icon
+        run: |
+          if [ -f "icon.png" ] || [ -f "icon.jpg" ] || [ -f "icon.jpeg" ]; then
+            ICON_FILE=$(ls icon.png icon.jpg icon.jpeg 2>/dev/null | head -n 1)
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+            convert $ICON_FILE -resize 48x48! app/src/main/res/mipmap-mdpi/ic_launcher.png
+            convert $ICON_FILE -resize 72x72! app/src/main/res/mipmap-hdpi/ic_launcher.png
+            convert $ICON_FILE -resize 96x96! app/src/main/res/mipmap-xhdpi/ic_launcher.png
+            convert $ICON_FILE -resize 144x144! app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+            convert $ICON_FILE -resize 192x192! app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          else
+            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" | base64 -d > app/src/main/res/mipmap-hdpi/ic_launcher.png
+            cp app/src/main/res/mipmap-hdpi/ic_launcher.png app/src/main/res/mipmap-mdpi/ic_launcher.png
+            cp app/src/main/res/mipmap-hdpi/ic_launcher.png app/src/main/res/mipmap-xhdpi/ic_launcher.png
+            cp app/src/main/res/mipmap-hdpi/ic_launcher.png app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+            cp app/src/main/res/mipmap-hdpi/ic_launcher.png app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          fi
+
+      - name: Create gradle.properties
+        run: |
+          cat > gradle.properties << 'EOF'
+          android.useAndroidX=true
+          android.enableJetifier=true
+          org.gradle.jvmargs=-Xmx2048m
+          EOF
+
+      - name: Create AndroidManifest.xml
+        run: |
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.jisuanqi.app">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:allowBackup="true"
+                  android:icon="@mipmap/ic_launcher"
+                  android:label="投注计算器"
+                  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+                  <activity android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+      - name: Create MainActivity.java
+        run: |
+          mkdir -p app/src/main/java/com/jisuanqi/app
+          cat > app/src/main/java/com/jisuanqi/app/MainActivity.java << 'EOF'
+          package com.jisuanqi.app;
+
+          import android.os.Bundle;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.content.ClipboardManager;
+          import android.content.ClipData;
+          import android.content.Context;
+          import android.widget.Toast;
+          import androidx.appcompat.app.AppCompatActivity;
+
+          public class MainActivity extends AppCompatActivity {
+
+              private WebView webView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  webView = new WebView(this);
+
+                  WebSettings webSettings = webView.getSettings();
+                  webSettings.setJavaScriptEnabled(true);
+                  webSettings.setDomStorageEnabled(true);
+                  webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+                  webSettings.setAllowFileAccess(true);
+                  webSettings.setAllowContentAccess(true);
+                  webSettings.setLoadWithOverviewMode(true);
+                  webSettings.setUseWideViewPort(true);
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                          view.loadUrl(url);
+                          return true;
+                      }
+                  });
+
+                  // 注册 JavaScript 桥接接口（用于读取剪贴板）
+                  webView.addJavascriptInterface(new JSBridge(), "jsAndroidBridge");
+
+                  webView.loadUrl("https://liangweiheng1.github.io/jisuanqi/");
+
+                  setContentView(webView);
+              }
+
+              // ============================================================
+              // JavaScript 桥接类
+              // ============================================================
+              public class JSBridge {
+                  @JavascriptInterface
+                  public String getClipboardText() {
+                      try {
+                          ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                          if (clipboard == null) {
+                              return "";
+                          }
+                          ClipData clip = clipboard.getPrimaryClip();
+                          if (clip != null && clip.getItemCount() > 0) {
+                              CharSequence text = clip.getItemAt(0).getText();
+                              return text != null ? text.toString() : "";
+                          }
+                      } catch (Exception e) {
+                          e.printStackTrace();
+                      }
+                      return "";
+                  }
+
+                  @JavascriptInterface
+                  public void showToast(String message) {
+                      Toast.makeText(MainActivity.this, message, Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              // ============================================================
+              // 处理返回键（让 WebView 后退，而不是直接退出 APP）
+              // ============================================================
+              @Override
+              public void onBackPressed() {
+                  if (webView != null && webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+      - name: Create build.gradle (root)
+        run: |
+          cat > build.gradle << 'EOF'
+          buildscript {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+              dependencies {
+                  classpath 'com.android.tools.build:gradle:7.4.2'
+              }
+          }
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          EOF
+
+      - name: Create app/build.gradle
+        run: |
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              compileSdk 34
+              namespace 'com.jisuanqi.app'
+              defaultConfig {
+                  applicationId 'com.jisuanqi.app'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+          dependencies {
+              implementation 'androidx.appcompat:appcompat:1.6.1'
+          }
+          EOF
+
+      - name: Create settings.gradle
+        run: |
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "jisuanqi"
+          include ':app'
+          EOF
+
+      - name: Create gradle wrapper
+        run: |
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.0-bin.zip
+          EOF
+
+      - name: Download gradle wrapper
+        run: |
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.0.0/gradlew -O gradlew
+          chmod +x gradlew
+
+      - name: Build APK
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/*.apk
