@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(new JSBridge(), "jsAndroidBridge");
 
         // 加载网页
-        webView.loadUrl("https://liangweiheng1.github.io/jisuanqi/");
+        webView.loadUrl("https://liangweiheng1.github.io/zhuanhuan/");
 
         // 设置 WebView 为 Activity 的内容视图
         setContentView(webView);
