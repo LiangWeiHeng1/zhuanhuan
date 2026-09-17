@@ -70,7 +70,11 @@ jobs:
           package com.zhuanhuan.app;
 
           import android.app.Activity;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Context;
           import android.os.Bundle;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
@@ -83,11 +87,33 @@ jobs:
                   super.onCreate(savedInstanceState);
                   webView = new WebView(this);
                   setContentView(webView);
+
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
+
                   webView.setWebViewClient(new WebViewClient());
+                  webView.addJavascriptInterface(new ClipboardBridge(), "AndroidClipboard");
+
                   webView.loadUrl("https://liangweiheng1.github.io/zhuanhuan/");
+              }
+
+              public class ClipboardBridge {
+                  @JavascriptInterface
+                  public String getText() {
+                      try {
+                          ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                          if (cm != null && cm.hasPrimaryClip() && cm.getPrimaryClip() != null) {
+                              ClipData clip = cm.getPrimaryClip();
+                              if (clip.getItemCount() > 0 && clip.getItemAt(0).getText() != null) {
+                                  return clip.getItemAt(0).getText().toString();
+                              }
+                          }
+                      } catch (Exception e) {
+                          return "";
+                      }
+                      return "";
+                  }
               }
 
               @Override
