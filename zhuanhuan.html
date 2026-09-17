@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>号码转换器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #f0f2f5; font-family: -apple-system, "Microsoft YaHei", "PingFang SC", sans-serif; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 10px 8px; }
+        .app { max-width: 480px; width: 100%; background: #ffffff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); padding: 14px 12px 20px; }
+        .section { margin-bottom: 10px; }
+        .section-label { font-weight: 600; font-size: 13px; color: #222; display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+        .section-hint { font-size: 11px; color: #b0b0b0; font-weight: 400; margin-left: 4px; }
+        .auto-grow-input { display: block; width: 100%; padding: 8px 10px; font-size: 13px; font-family: "Consolas", "Courier New", monospace; background: #fafbfc; border: 1px solid #e2e6ea; border-radius: 8px; outline: none; transition: 0.15s; color: #1e1e2a; line-height: 1.7; white-space: pre-wrap; word-wrap: break-word; word-break: break-all; min-height: 44px; resize: none; overflow: hidden; }
+        .auto-grow-input:focus { border-color: #4a90d9; box-shadow: 0 0 0 3px rgba(74,144,217,0.10); background: #ffffff; }
+        .result-pre { display: block; width: 100%; padding: 6px 8px; font-family: "Consolas", "Courier New", monospace; font-size: 13px; background: #f8faff; border: 1px solid #e2e6ea; border-radius: 6px; color: #1a1a2e; line-height: 1.9; white-space: pre-wrap; word-wrap: break-word; word-break: break-all; min-height: 34px; margin: 0; overflow: hidden; }
+        .result-pre.error { background: #fff5f5; border-color: #f5c6cb; color: #721c24; }
+        .btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px 0; }
+        .btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; background: #eef1f4; color: #2d2d3f; cursor: pointer; transition: 0.15s; font-family: inherit; flex: 1; text-align: center; min-width: 80px; }
+        .btn-success { background: #28a745; color: #fff; }
+        .btn-success:active { background: #1e7e34; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn-danger:active { background: #a71d2a; }
+        .btn-outline { background: #ffffff; border: 1px solid #d0d7de; color: #444; }
+        .btn-outline:active { background: #e9ecef; }
+        .btn-primary { background: #4a90d9; color: #fff; }
+        .btn-primary:active { background: #2a6fb0; }
+        .btn-sm { padding: 4px 12px; font-size: 11px; flex: none; min-width: 60px; }
+        .result-card { border: 1px solid #eaeef2; border-radius: 10px; padding: 10px 12px 8px; margin-bottom: 10px; background: #ffffff; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .result-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+        .result-title .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+        .dot-green { background: #2e7d32; }
+        .dot-red { background: #c62828; }
+        .dot-yellow { background: #f9a825; }
+        .result-count { font-size: 12px; color: #888; font-weight: 400; }
+        .copy-row { display: flex; justify-content: flex-end; margin-top: 2px; }
+        #fixedInput { min-height: 38px; font-size: 13px; padding: 6px 10px; }
+        @media (max-width: 400px) { .app { padding: 10px 8px; } .btn { font-size: 12px; padding: 6px 10px; } .result-pre { font-size: 12px; padding: 6px 8px; } .auto-grow-input { font-size: 12px; padding: 6px 8px; } .section-label { font-size: 12px; } }
+    </style>
+</head>
+<body>
+<div class="app" id="app">
+    <div class="section">
+        <div class="section-label">固定号码池 <span class="section-hint">支持数字/生肖(如:马 蛇 01 13)</span></div>
+        <textarea id="fixedInput" class="auto-grow-input" placeholder="例如：01 02 03 或 马 蛇 龙 或 红波 蓝波"></textarea>
+    </div>
+    <div class="section">
+        <div class="section-label">号码消息 <span class="section-hint">📋 一键粘贴</span></div>
+        <textarea id="msgInput" class="auto-grow-input" placeholder="输入投注内容，如：1、2、3各100 或 马、蛇、龙各50"></textarea>
+    </div>
+    <div class="btn-row">
+        <button class="btn btn-success" id="pasteBtn">📋 粘贴</button>
+        <button class="btn btn-danger" id="clearBtn">🗑️ 清空</button>
+    </div>
+    <div class="result-card" id="errorCard" style="border-color: #f5c6cb; display:none;">
+        <div class="result-header"><div class="result-title"><span class="dot dot-yellow"></span> ⚠️ 格式错误</div><span class="result-count" id="errorCount">共 0 个</span></div>
+        <pre id="errorText" class="result-pre error">无</pre>
+        <div class="copy-row"><button class="btn btn-outline btn-sm" id="copyErrorBtn">复制</button></div>
+    </div>
+    <div class="result-card">
+        <div class="result-header"><div class="result-title"><span class="dot dot-green"></span> 命中固定池</div><span class="result-count" id="hitCount">共 0 个</span></div>
+        <pre id="result1Text" class="result-pre">无数据</pre>
+        <div class="copy-row"><button class="btn btn-outline btn-sm" id="copy1Btn">复制</button></div>
+    </div>
+    <div class="result-card">
+        <div class="result-header"><div class="result-title"><span class="dot dot-red"></span> 未命中固定池</div><span class="result-count" id="missCount">共 0 个</span></div>
+        <pre id="result2Text" class="result-pre">无数据</pre>
+        <div class="copy-row"><button class="btn btn-outline btn-sm" id="copy2Btn">复制</button></div>
+    </div>
+    <div style="display:flex; justify-content:center; margin-top: 4px;">
+        <button class="btn btn-primary" id="copyAllBtn" style="padding: 8px 20px; flex:none;">📋 复制全部</button>
+    </div>
+</div>
+<script>
+const RULES = {
+    '红波': [1,2,7,8,12,13,18,19,23,24,29,30,34,35,40,45,46],
+    '绿波': [5,6,11,16,17,21,22,27,28,32,33,38,39,43,44,49],
+    '蓝波': [3,4,9,10,14,15,20,25,26,31,36,37,41,42,47,48],
+    '马': [1,13,25,37,49],
+    '蛇': [2,14,26,38],
+    '龙': [3,15,27,39],
+    '兔': [4,16,28,40],
+    '虎': [5,17,29,41],
+    '牛': [6,18,30,42],
+    '鼠': [7,19,31,43],
+    '猪': [8,20,32,44],
+    '狗': [9,21,33,45],
+    '鸡': [10,22,34,46],
+    '猴': [11,23,35,47],
+    '羊': [12,24,36,48],
+    '红单': [1,7,13,19,23,29,35,45],
+    '红双': [2,8,12,18,24,30,34,40,46],
+    '蓝单': [3,9,15,25,31,37,41,47],
+    '蓝双': [4,10,14,20,26,36,42,48],
+    '绿单': [5,11,17,21,27,33,39,43,49],
+    '绿双': [6,16,22,28,32,38,44],
+    '0尾': [0,10,20,30,40],
+    '1尾': [1,11,21,31,41],
+    '2尾': [2,12,22,32,42],
+    '3尾': [3,13,23,33,43],
+    '4尾': [4,14,24,34,44],
+    '5尾': [5,15,25,35,45],
+    '6尾': [6,16,26,36,46],
+    '7尾': [7,17,27,37,47],
+    '8尾': [8,18,28,38,48],
+    '9尾': [9,19,29,39,49],
+    '红': [1,2,7,8,12,13,18,19,23,24,29,30,34,35,40,45,46],
+    '蓝': [3,4,9,10,14,15,20,25,26,31,36,37,41,42,47,48],
+    '绿': [5,6,11,16,17,21,22,27,28,32,33,38,39,43,44,49]
+};
+const KEYWORDS = Object.keys(RULES);
+
+function parseInput(text) {
+    var result = {};
+    var totalCount = 0;
+    var lines = text.split('\n').filter(function(line) { return line.trim() !== ''; });
+    for (var li = 0; li < lines.length; li++) {
+        var line = lines[li];
+        var parts = line.split(/各(?:数|号)?|每个/);
+        if (parts.length < 2) continue;
+        var amountStr = parts[parts.length - 1];
+        var amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) continue;
+        var left = parts.slice(0, -1).join('');
+        var foundKeywords = [];
+        for (var ki = 0; ki < KEYWORDS.length; ki++) {
+            var kw = KEYWORDS[ki];
+            if (left.indexOf(kw) !== -1) {
+                foundKeywords.push(kw);
+                left = left.replace(kw, '');
+            }
+        }
+        if (foundKeywords.length > 0) {
+            for (var fi = 0; fi < foundKeywords.length; fi++) {
+                var nums = RULES[foundKeywords[fi]];
+                for (var ni = 0; ni < nums.length; ni++) {
+                    var key = String(nums[ni]).padStart(2, '0');
+                    result[key] = (result[key] || 0) + amount;
+                    totalCount++;
+                }
+            }
+        }
+        var numbers = left.match(/\d+/g);
+        if (numbers) {
+            for (var ni2 = 0; ni2 < numbers.length; ni2++) {
+                var val = parseInt(numbers[ni2]);
+                if (val >= 1 && val <= 49) {
+                    var key2 = String(val).padStart(2, '0');
+                    result[key2] = (result[key2] || 0) + amount;
+                    totalCount++;
+                }
+            }
+        }
+    }
+    return { dict: result, total: totalCount };
+}
+
+function extractErrors(text) {
+    var errors = [];
+    var lines = text.split('\n').filter(function(line) { return line.trim() !== ''; });
+    for (var li = 0; li < lines.length; li++) {
+        var line = lines[li];
+        if (line.indexOf('各') === -1) {
+            errors.push(line.trim() + '(缺少"各")');
+            continue;
+        }
+        var parts = line.split(/各(?:数|号)?/);
+        if (parts.length < 2) {
+            errors.push(line.trim() + '(格式错误)');
+            continue;
+        }
+        var amountStr = parts[parts.length - 1];
+        var amount = parseInt(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            errors.push(line.trim() + '(金额格式错误)');
+            continue;
+        }
+        var left = parts.slice(0, -1).join('');
+        var hasKeyword = false;
+        for (var ki = 0; ki < KEYWORDS.length; ki++) {
+            if (left.indexOf(KEYWORDS[ki]) !== -1) {
+                hasKeyword = true;
+                break;
+            }
+        }
+        var hasNumber = /\d/.test(left);
+        if (!hasKeyword && !hasNumber) {
+            errors.push(line.trim() + '(无效号码)');
+            continue;
+        }
+        if (hasNumber) {
+            var nums = left.match(/\d+/g);
+            if (nums) {
+                var allValid = true;
+                for (var i = 0; i < nums.length; i++) {
+                    var val = parseInt(nums[i]);
+                    if (val < 1 || val > 49) {
+                        allValid = false;
+                        break;
+                    }
+                }
+                if (!allValid) {
+                    errors.push(line.trim() + '(号码超出1-49)');
+                }
+            }
+        }
+    }
+    return errors;
+}
+
+function formatResult(dict) {
+    var keys = Object.keys(dict).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+    if (keys.length === 0) return '无数据';
+    var items = keys.map(function(k) { return k + '=' + dict[k]; });
+    var lines = [];
+    for (var i = 0; i < items.length; i += 4) {
+        lines.push(items.slice(i, i + 4).join('  '));
+    }
+    return lines.join('\n');
+}
+function formatPlain(dict) {
+    var keys = Object.keys(dict).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+    if (keys.length === 0) return '';
+    return keys.map(function(k) { return k + '=' + dict[k]; }).join(' ');
+}
+
+var fixedInput = document.getElementById('fixedInput');
+var msgInput = document.getElementById('msgInput');
+var result1Text = document.getElementById('result1Text');
+var result2Text = document.getElementById('result2Text');
+var hitCount = document.getElementById('hitCount');
+var missCount = document.getElementById('missCount');
+var errorText = document.getElementById('errorText');
+var errorCount = document.getElementById('errorCount');
+var errorCard = document.getElementById('errorCard');
+var pasteBtn = document.getElementById('pasteBtn');
+var clearBtn = document.getElementById('clearBtn');
+var copy1Btn = document.getElementById('copy1Btn');
+var copy2Btn = document.getElementById('copy2Btn');
+var copyAllBtn = document.getElementById('copyAllBtn');
+var copyErrorBtn = document.getElementById('copyErrorBtn');
+
+var lastHit = '', lastMiss = '', lastError = '';
+
+function getFixedSet() {
+    var text = fixedInput.value.trim();
+    var set = new Set();
+    if (!text) return set;
+    var nums = text.match(/\d+/g) || [];
+    for (var i = 0; i < nums.length; i++) {
+        var val = parseInt(nums[i]);
+        if (val >= 1 && val <= 49) set.add(String(val).padStart(2, '0'));
+    }
+    var remaining = text;
+    remaining = remaining.replace(/\d+/g, ' ');
+    for (var ki = 0; ki < KEYWORDS.length; ki++) {
+        var kw = KEYWORDS[ki];
+        if (remaining.indexOf(kw) !== -1) {
+            var ruleNums = RULES[kw];
+            for (var r = 0; r < ruleNums.length; r++) {
+                set.add(String(ruleNums[r]).padStart(2, '0'));
+            }
+            remaining = remaining.replace(new RegExp(kw, 'g'), ' ');
+        }
+    }
+    return set;
+}
+
+function getMsg() { return msgInput.value || ''; }
+function setMsg(text) { msgInput.value = text; }
+
+function doConvert() {
+    var msg = getMsg().trim();
+    if (!msg) {
+        result1Text.textContent = '无数据';
+        result2Text.textContent = '无数据';
+        hitCount.textContent = '共 0 个';
+        missCount.textContent = '共 0 个';
+        errorCard.style.display = 'none';
+        lastHit = ''; lastMiss = ''; lastError = '';
+        return;
+    }
+    var errors = extractErrors(msg);
+    if (errors.length > 0) {
+        errorCard.style.display = 'block';
+        errorText.textContent = errors.join('  ');
+        errorCount.textContent = '共 ' + errors.length + ' 个';
+        lastError = errors.join(' ');
+    } else {
+        errorCard.style.display = 'none';
+        lastError = '';
+    }
+    var fixedSet = getFixedSet();
+    var parsed = parseInput(msg);
+    if (!parsed || Object.keys(parsed.dict).length === 0) {
+        result1Text.textContent = '解析失败';
+        result2Text.textContent = '解析失败';
+        hitCount.textContent = '共 0 个';
+        missCount.textContent = '共 0 个';
+        lastHit = ''; lastMiss = '';
+        return;
+    }
+    var dict = parsed.dict;
+    var total = parsed.total;
+    var hit = {}, miss = {};
+    for (var key in dict) {
+        if (dict.hasOwnProperty(key)) {
+            if (fixedSet.has(key)) {
+                hit[key] = dict[key];
+            } else {
+                miss[key] = dict[key];
+            }
+        }
+    }
+    var hitRaw = Object.keys(dict).filter(function(k) { return fixedSet.has(k); }).length;
+    var missRaw = total - hitRaw;
+    if (Object.keys(hit).length) {
+        result1Text.textContent = formatResult(hit);
+        lastHit = formatPlain(hit);
+        hitCount.textContent = '共 ' + Object.keys(hit).length + ' 个（原始 ' + hitRaw + ' 个）';
+    } else {
+        result1Text.textContent = '无命中号码';
+        lastHit = '';
+        hitCount.textContent = '共 0 个';
+    }
+    if (Object.keys(miss).length) {
+        result2Text.textContent = formatResult(miss);
+        lastMiss = formatPlain(miss);
+        missCount.textContent = '共 ' + Object.keys(miss).length + ' 个（原始 ' + missRaw + ' 个）';
+    } else {
+        result2Text.textContent = '全部命中';
+        lastMiss = '';
+        missCount.textContent = '共 0 个';
+    }
+}
+
+function clearAll() {
+    setMsg('');
+    result1Text.textContent = '无数据';
+    result2Text.textContent = '无数据';
+    hitCount.textContent = '共 0 个';
+    missCount.textContent = '共 0 个';
+    errorCard.style.display = 'none';
+    lastHit = ''; lastMiss = ''; lastError = '';
+}
+
+function copyText(text, btn) {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function() {
+            btn.textContent = '✅已复制';
+            setTimeout(function() { btn.textContent = btn.getAttribute('data-original') || '复制'; }, 1000);
+        }).catch(function() {
+            fallbackCopy(text, btn);
+        });
+    } else {
+        fallbackCopy(text, btn);
+    }
+}
+function fallbackCopy(text, btn) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+        document.execCommand('copy');
+        btn.textContent = '✅已复制';
+        setTimeout(function() { btn.textContent = btn.getAttribute('data-original') || '复制'; }, 1000);
+    } catch (e) {
+        btn.textContent = '❌复制失败';
+        setTimeout(function() { btn.textContent = btn.getAttribute('data-original') || '复制'; }, 1000);
+    }
+    document.body.removeChild(ta);
+}
+
+pasteBtn.addEventListener('click', function() {
+    if (window.AndroidClipboard && window.AndroidClipboard.getText) {
+        try {
+            var text = window.AndroidClipboard.getText();
+            if (text && text.trim()) {
+                setMsg(text.trim());
+                doConvert();
+                pasteBtn.textContent = '✅ 已粘贴';
+                setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
+                return;
+            }
+        } catch(e) {}
+    }
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(function(text) {
+            if (text && text.trim()) {
+                setMsg(text.trim());
+                doConvert();
+                pasteBtn.textContent = '✅ 已粘贴';
+                setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
+            }
+        }).catch(function() {
+            pasteBtn.textContent = '⚠️ 请长按输入框粘贴';
+            setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 2000);
+            msgInput.focus();
+        });
+    } else {
+        pasteBtn.textContent = '⚠️ 请长按输入框粘贴';
+        setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 2000);
+        msgInput.focus();
+    }
+});
+
+clearBtn.addEventListener('click', clearAll);
+
+copy1Btn.addEventListener('click', function() {
+    if (lastHit) {
+        copy1Btn.setAttribute('data-original', copy1Btn.textContent);
+        copyText(lastHit, copy1Btn);
+    }
+});
+copy2Btn.addEventListener('click', function() {
+    if (lastMiss) {
+        copy2Btn.setAttribute('data-original', copy2Btn.textContent);
+        copyText(lastMiss, copy2Btn);
+    }
+});
+copyErrorBtn.addEventListener('click', function() {
+    if (lastError) {
+        copyErrorBtn.setAttribute('data-original', copyErrorBtn.textContent);
+        copyText(lastError, copyErrorBtn);
+    }
+});
+copyAllBtn.addEventListener('click', function() {
+    var parts = [];
+    if (lastHit) parts.push.apply(parts, lastHit.split(' '));
+    if (lastMiss) parts.push.apply(parts, lastMiss.split(' '));
+    var map = {};
+    for (var i = 0; i < parts.length; i++) {
+        var item = parts[i];
+        if (!item) continue;
+        var kv = item.split('=');
+        if (kv.length === 2 && kv[0] && kv[1] && !map[kv[0]]) {
+            map[kv[0]] = kv[1];
+        }
+    }
+    var keys = Object.keys(map).sort(function(a, b) { return parseInt(a) - parseInt(b); });
+    var output = keys.map(function(k) { return k + '=' + map[k]; }).join(' ');
+    if (output) {
+        copyAllBtn.setAttribute('data-original', copyAllBtn.textContent);
+        copyText(output, copyAllBtn);
+    }
+});
+
+function autoResizeAndConvert(e) {
+    var el = e.target;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+    doConvert();
+}
+fixedInput.addEventListener('input', autoResizeAndConvert);
+msgInput.addEventListener('input', autoResizeAndConvert);
+
+window.addEventListener('load', function() {
+    var els = [fixedInput, msgInput];
+    for (var i = 0; i < els.length; i++) {
+        els[i].style.height = 'auto';
+        els[i].style.height = els[i].scrollHeight + 'px';
+    }
+});
+console.log('✅ 号码转换器已加载');
+</script>
+</body>
+</html>
