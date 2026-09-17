@@ -19,17 +19,28 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Install Android SDK
+        run: |
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline.zip
+          unzip -q cmdline.zip
+          mv cmdline-tools latest
+          mkdir -p $HOME/android-sdk/cmdline-tools/latest
+          mv latest/* $HOME/android-sdk/cmdline-tools/latest/ 2>/dev/null || true
+          cd $HOME/android-sdk/cmdline-tools/latest
+          yes | ./bin/sdkmanager --licenses || true
+          ./bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
-      - name: Build APK
+      - name: Setup project files
         run: |
           mkdir -p app/src/main/java/com/zhuanhuan/app
-          mkdir -p app/src/main/res/layout
-          mkdir -p app/src/main/res/values
           mkdir -p app/src/main
 
-          # AndroidManifest.xml
           cat > app/src/main/AndroidManifest.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
@@ -50,7 +61,6 @@ jobs:
           </manifest>
           EOF
 
-          # MainActivity.java
           cat > app/src/main/java/com/zhuanhuan/app/MainActivity.java << 'EOF'
           package com.zhuanhuan.app;
 
@@ -66,14 +76,11 @@ jobs:
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-
                   webView = new WebView(this);
                   setContentView(webView);
-
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
-
                   webView.setWebViewClient(new WebViewClient());
                   webView.loadUrl("https://liangweiheng1.github.io/zhuanhuan/");
               }
@@ -89,16 +96,13 @@ jobs:
           }
           EOF
 
-          # build.gradle
           cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
           }
-
           android {
               namespace 'com.zhuanhuan.app'
               compileSdk 34
-
               defaultConfig {
                   applicationId "com.zhuanhuan.app"
                   minSdk 21
@@ -106,13 +110,11 @@ jobs:
                   versionCode 1
                   versionName "1.0"
               }
-
               buildTypes {
                   release {
                       minifyEnabled false
                   }
               }
-
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
@@ -120,7 +122,6 @@ jobs:
           }
           EOF
 
-          # settings.gradle
           cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
@@ -139,22 +140,25 @@ jobs:
           include ':app'
           EOF
 
-          # build.gradle (根)
           cat > build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.1.0' apply false
           }
           EOF
 
-          # gradle.properties
           cat > gradle.properties << 'EOF'
           android.useAndroidX=true
           org.gradle.jvmargs=-Xmx2048m
           EOF
 
-          # 构建
+          cat > local.properties << EOF
+          sdk.dir=$HOME/android-sdk
+          EOF
+
+      - name: Build APK
+        run: |
           gradle wrapper --gradle-version 8.2
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
