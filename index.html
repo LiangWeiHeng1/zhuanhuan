@@ -270,6 +270,13 @@ function getFixedSet() {
 function getMsg() { return msgInput.value || ''; }
 function setMsg(text) { msgInput.value = text; }
 
+function resizeInput(el) {
+    el.style.height = 'auto';
+    var h = el.scrollHeight;
+    if (h < 44) h = 44;
+    el.style.height = h + 'px';
+}
+
 function doConvert() {
     var msg = getMsg().trim();
     if (!msg) {
@@ -337,6 +344,7 @@ function doConvert() {
 
 function clearAll() {
     setMsg('');
+    resizeInput(msgInput);
     result1Text.textContent = '无数据';
     result2Text.textContent = '无数据';
     hitCount.textContent = '共 0 个';
@@ -378,12 +386,17 @@ function fallbackCopy(text, btn) {
 }
 
 pasteBtn.addEventListener('click', function() {
+    var applyText = function(text) {
+        setMsg(text.trim());
+        resizeInput(msgInput);
+        doConvert();
+    };
+
     if (window.AndroidClipboard && window.AndroidClipboard.getText) {
         try {
             var text = window.AndroidClipboard.getText();
             if (text && text.trim()) {
-                setMsg(text.trim());
-                doConvert();
+                applyText(text);
                 pasteBtn.textContent = '✅ 已粘贴';
                 setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
                 return;
@@ -393,8 +406,7 @@ pasteBtn.addEventListener('click', function() {
     if (navigator.clipboard && navigator.clipboard.readText) {
         navigator.clipboard.readText().then(function(text) {
             if (text && text.trim()) {
-                setMsg(text.trim());
-                doConvert();
+                applyText(text);
                 pasteBtn.textContent = '✅ 已粘贴';
                 setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
             }
@@ -453,23 +465,15 @@ copyAllBtn.addEventListener('click', function() {
 
 function autoResizeAndConvert(e) {
     var el = e.target;
-    el.style.height = 'auto';
-    var h = el.scrollHeight;
-    if (h < 44) h = 44;
-    el.style.height = h + 'px';
+    resizeInput(el);
     doConvert();
 }
 fixedInput.addEventListener('input', autoResizeAndConvert);
 msgInput.addEventListener('input', autoResizeAndConvert);
 
 window.addEventListener('load', function() {
-    var els = [fixedInput, msgInput];
-    for (var i = 0; i < els.length; i++) {
-        els[i].style.height = 'auto';
-        var h = els[i].scrollHeight;
-        if (h < 44) h = 44;
-        els[i].style.height = h + 'px';
-    }
+    resizeInput(fixedInput);
+    resizeInput(msgInput);
 });
 console.log('✅ 号码转换器已加载');
 </script>
