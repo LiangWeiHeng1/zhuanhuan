@@ -91,6 +91,9 @@ jobs:
                   WebSettings settings = webView.getSettings();
                   settings.setJavaScriptEnabled(true);
                   settings.setDomStorageEnabled(true);
+                  settings.setLayoutAlgorithm(WebSettings.LayoutAlgorithm.NORMAL);
+                  settings.setLoadWithOverviewMode(true);
+                  settings.setUseWideViewPort(true);
 
                   webView.setWebViewClient(new WebViewClient());
                   webView.addJavascriptInterface(new ClipboardBridge(), "AndroidClipboard");
