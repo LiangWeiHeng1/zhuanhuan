@@ -454,7 +454,9 @@ copyAllBtn.addEventListener('click', function() {
 function autoResizeAndConvert(e) {
     var el = e.target;
     el.style.height = 'auto';
-    el.style.height = el.scrollHeight + 'px';
+    var h = el.scrollHeight;
+    if (h < 44) h = 44;
+    el.style.height = h + 'px';
     doConvert();
 }
 fixedInput.addEventListener('input', autoResizeAndConvert);
@@ -464,7 +466,9 @@ window.addEventListener('load', function() {
     var els = [fixedInput, msgInput];
     for (var i = 0; i < els.length; i++) {
         els[i].style.height = 'auto';
-        els[i].style.height = els[i].scrollHeight + 'px';
+        var h = els[i].scrollHeight;
+        if (h < 44) h = 44;
+        els[i].style.height = h + 'px';
     }
 });
 console.log('✅ 号码转换器已加载');
