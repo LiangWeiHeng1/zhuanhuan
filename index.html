@@ -42,8 +42,8 @@
 <body>
 <div class="app" id="app">
     <div class="section">
-        <div class="section-label">固定号码池 <span class="section-hint">支持数字/生肖(如:马 蛇 01 13)</span></div>
-        <textarea id="fixedInput" class="auto-grow-input" placeholder="例如：01 02 03 或 马 蛇 龙 或 红波 蓝波"></textarea>
+<div class="section-label">固定号码池 <span class="section-hint">支持数字/生肖(如:马 蛇 01 13)</span></div>
+<textarea id="fixedInput" class="auto-grow-input" placeholder="例如：01 02 03 或 马 蛇 龙 或 红波 蓝波"></textarea>
     </div>
     <div class="section">
         <div class="section-label">号码消息 <span class="section-hint">📋 一键粘贴</span></div>
@@ -73,6 +73,11 @@
     </div>
 </div>
 <script>
+// ============================================================
+// 完整版 - 支持所有分隔符 + 关键词批量识别 + 复制降级
+// ============================================================
+
+// ---------- 规则 ----------
 const RULES = {
     '红波': [1,2,7,8,12,13,18,19,23,24,29,30,34,35,40,45,46],
     '绿波': [5,6,11,16,17,21,22,27,28,32,33,38,39,43,44,49],
@@ -109,20 +114,38 @@ const RULES = {
     '蓝': [3,4,9,10,14,15,20,25,26,31,36,37,41,42,47,48],
     '绿': [5,6,11,16,17,21,22,27,28,32,33,38,39,43,44,49]
 };
+
 const KEYWORDS = Object.keys(RULES);
 
+// ---------- 解析 ----------
 function parseInput(text) {
     var result = {};
     var totalCount = 0;
     var lines = text.split('\n').filter(function(line) { return line.trim() !== ''; });
+    
     for (var li = 0; li < lines.length; li++) {
         var line = lines[li];
         var parts = line.split(/各(?:数|号)?|每个/);
-        if (parts.length < 2) continue;
-        var amountStr = parts[parts.length - 1];
-        var amount = parseInt(amountStr);
-        if (isNaN(amount) || amount <= 0) continue;
-        var left = parts.slice(0, -1).join('');
+        var amount, left;
+
+        if (parts.length >= 2) {
+            var amountStr = parts[parts.length - 1];
+            amount = parseInt(amountStr);
+            if (isNaN(amount) || amount <= 0) continue;
+            left = parts.slice(0, -1).join('');
+        } else {
+            var slashMatch = line.match(/^(\d+)\/(\d+)$/);
+            if (!slashMatch) continue;
+            var num = parseInt(slashMatch[1]);
+            if (num < 1 || num > 49) continue;
+            amount = parseInt(slashMatch[2]);
+            if (isNaN(amount) || amount <= 0) continue;
+            var key = String(num).padStart(2, '0');
+            result[key] = (result[key] || 0) + amount;
+            totalCount++;
+            continue;
+        }
+        
         var foundKeywords = [];
         for (var ki = 0; ki < KEYWORDS.length; ki++) {
             var kw = KEYWORDS[ki];
@@ -131,6 +154,7 @@ function parseInput(text) {
                 left = left.replace(kw, '');
             }
         }
+        
         if (foundKeywords.length > 0) {
             for (var fi = 0; fi < foundKeywords.length; fi++) {
                 var nums = RULES[foundKeywords[fi]];
@@ -141,6 +165,7 @@ function parseInput(text) {
                 }
             }
         }
+        
         var numbers = left.match(/\d+/g);
         if (numbers) {
             for (var ni2 = 0; ni2 < numbers.length; ni2++) {
@@ -153,30 +178,46 @@ function parseInput(text) {
             }
         }
     }
+    
     return { dict: result, total: totalCount };
 }
 
+// ---------- 错误检测 ----------
 function extractErrors(text) {
     var errors = [];
     var lines = text.split('\n').filter(function(line) { return line.trim() !== ''; });
+    
     for (var li = 0; li < lines.length; li++) {
         var line = lines[li];
-        if (line.indexOf('各') === -1) {
-            errors.push(line.trim() + '(缺少"各")');
-            continue;
-        }
         var parts = line.split(/各(?:数|号)?/);
-        if (parts.length < 2) {
-            errors.push(line.trim() + '(格式错误)');
+        var left;
+
+        if (parts.length >= 2) {
+            var amountStr = parts[parts.length - 1];
+            var amount = parseInt(amountStr);
+            if (isNaN(amount) || amount <= 0) {
+                errors.push(line.trim() + '(金额格式错误)');
+                continue;
+            }
+            left = parts.slice(0, -1).join('');
+        } else {
+            var slashMatch = line.match(/^(\d+)\/(\d+)$/);
+            if (!slashMatch) {
+                errors.push(line.trim() + '(缺少"各")');
+                continue;
+            }
+            var num = parseInt(slashMatch[1]);
+            if (num < 1 || num > 49) {
+                errors.push(line.trim() + '(号码超出1-49)');
+                continue;
+            }
+            var amount2 = parseInt(slashMatch[2]);
+            if (isNaN(amount2) || amount2 <= 0) {
+                errors.push(line.trim() + '(金额格式错误)');
+                continue;
+            }
             continue;
         }
-        var amountStr = parts[parts.length - 1];
-        var amount = parseInt(amountStr);
-        if (isNaN(amount) || amount <= 0) {
-            errors.push(line.trim() + '(金额格式错误)');
-            continue;
-        }
-        var left = parts.slice(0, -1).join('');
         var hasKeyword = false;
         for (var ki = 0; ki < KEYWORDS.length; ki++) {
             if (left.indexOf(KEYWORDS[ki]) !== -1) {
@@ -209,6 +250,7 @@ function extractErrors(text) {
     return errors;
 }
 
+// ---------- 格式化 ----------
 function formatResult(dict) {
     var keys = Object.keys(dict).sort(function(a, b) { return parseInt(a) - parseInt(b); });
     if (keys.length === 0) return '无数据';
@@ -219,12 +261,14 @@ function formatResult(dict) {
     }
     return lines.join('\n');
 }
+
 function formatPlain(dict) {
     var keys = Object.keys(dict).sort(function(a, b) { return parseInt(a) - parseInt(b); });
     if (keys.length === 0) return '';
     return keys.map(function(k) { return k + '=' + dict[k]; }).join(' ');
 }
 
+// ---------- DOM ----------
 var fixedInput = document.getElementById('fixedInput');
 var msgInput = document.getElementById('msgInput');
 var result1Text = document.getElementById('result1Text');
@@ -247,13 +291,19 @@ function getFixedSet() {
     var text = fixedInput.value.trim();
     var set = new Set();
     if (!text) return set;
+
+    // 1) 提取纯数字
     var nums = text.match(/\d+/g) || [];
     for (var i = 0; i < nums.length; i++) {
         var val = parseInt(nums[i]);
         if (val >= 1 && val <= 49) set.add(String(val).padStart(2, '0'));
     }
+
+    // 2) 提取关键词（生肖/波色/尾数/单双等），复用 RULES
     var remaining = text;
+    // 先去掉数字，避免干扰
     remaining = remaining.replace(/\d+/g, ' ');
+
     for (var ki = 0; ki < KEYWORDS.length; ki++) {
         var kw = KEYWORDS[ki];
         if (remaining.indexOf(kw) !== -1) {
@@ -261,21 +311,16 @@ function getFixedSet() {
             for (var r = 0; r < ruleNums.length; r++) {
                 set.add(String(ruleNums[r]).padStart(2, '0'));
             }
+            // 防止重复匹配（如"红波"里含"红"）
             remaining = remaining.replace(new RegExp(kw, 'g'), ' ');
         }
     }
+
     return set;
 }
 
 function getMsg() { return msgInput.value || ''; }
 function setMsg(text) { msgInput.value = text; }
-
-function resizeInput(el) {
-    el.style.height = 'auto';
-    var h = el.scrollHeight;
-    if (h < 44) h = 44;
-    el.style.height = h + 'px';
-}
 
 function doConvert() {
     var msg = getMsg().trim();
@@ -288,6 +333,7 @@ function doConvert() {
         lastHit = ''; lastMiss = ''; lastError = '';
         return;
     }
+    
     var errors = extractErrors(msg);
     if (errors.length > 0) {
         errorCard.style.display = 'block';
@@ -298,6 +344,7 @@ function doConvert() {
         errorCard.style.display = 'none';
         lastError = '';
     }
+    
     var fixedSet = getFixedSet();
     var parsed = parseInput(msg);
     if (!parsed || Object.keys(parsed.dict).length === 0) {
@@ -308,9 +355,11 @@ function doConvert() {
         lastHit = ''; lastMiss = '';
         return;
     }
+    
     var dict = parsed.dict;
     var total = parsed.total;
     var hit = {}, miss = {};
+    
     for (var key in dict) {
         if (dict.hasOwnProperty(key)) {
             if (fixedSet.has(key)) {
@@ -320,8 +369,10 @@ function doConvert() {
             }
         }
     }
+    
     var hitRaw = Object.keys(dict).filter(function(k) { return fixedSet.has(k); }).length;
     var missRaw = total - hitRaw;
+    
     if (Object.keys(hit).length) {
         result1Text.textContent = formatResult(hit);
         lastHit = formatPlain(hit);
@@ -331,6 +382,7 @@ function doConvert() {
         lastHit = '';
         hitCount.textContent = '共 0 个';
     }
+    
     if (Object.keys(miss).length) {
         result2Text.textContent = formatResult(miss);
         lastMiss = formatPlain(miss);
@@ -344,7 +396,6 @@ function doConvert() {
 
 function clearAll() {
     setMsg('');
-    resizeInput(msgInput);
     result1Text.textContent = '无数据';
     result2Text.textContent = '无数据';
     hitCount.textContent = '共 0 个';
@@ -353,6 +404,7 @@ function clearAll() {
     lastHit = ''; lastMiss = ''; lastError = '';
 }
 
+// ---------- 复制（带降级方案） ----------
 function copyText(text, btn) {
     if (!text) return;
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -366,6 +418,7 @@ function copyText(text, btn) {
         fallbackCopy(text, btn);
     }
 }
+
 function fallbackCopy(text, btn) {
     var ta = document.createElement('textarea');
     ta.value = text;
@@ -385,18 +438,14 @@ function fallbackCopy(text, btn) {
     document.body.removeChild(ta);
 }
 
+// ---------- 粘贴 ----------
 pasteBtn.addEventListener('click', function() {
-    var applyText = function(text) {
-        setMsg(text.trim());
-        resizeInput(msgInput);
-        doConvert();
-    };
-
     if (window.AndroidClipboard && window.AndroidClipboard.getText) {
         try {
             var text = window.AndroidClipboard.getText();
             if (text && text.trim()) {
-                applyText(text);
+                setMsg(text.trim());
+                doConvert();
                 pasteBtn.textContent = '✅ 已粘贴';
                 setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
                 return;
@@ -406,7 +455,8 @@ pasteBtn.addEventListener('click', function() {
     if (navigator.clipboard && navigator.clipboard.readText) {
         navigator.clipboard.readText().then(function(text) {
             if (text && text.trim()) {
-                applyText(text);
+                setMsg(text.trim());
+                doConvert();
                 pasteBtn.textContent = '✅ 已粘贴';
                 setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
             }
@@ -424,24 +474,28 @@ pasteBtn.addEventListener('click', function() {
 
 clearBtn.addEventListener('click', clearAll);
 
+// ---------- 复制按钮绑定 ----------
 copy1Btn.addEventListener('click', function() {
     if (lastHit) {
         copy1Btn.setAttribute('data-original', copy1Btn.textContent);
         copyText(lastHit, copy1Btn);
     }
 });
+
 copy2Btn.addEventListener('click', function() {
     if (lastMiss) {
         copy2Btn.setAttribute('data-original', copy2Btn.textContent);
         copyText(lastMiss, copy2Btn);
     }
 });
+
 copyErrorBtn.addEventListener('click', function() {
     if (lastError) {
         copyErrorBtn.setAttribute('data-original', copyErrorBtn.textContent);
         copyText(lastError, copyErrorBtn);
     }
 });
+
 copyAllBtn.addEventListener('click', function() {
     var parts = [];
     if (lastHit) parts.push.apply(parts, lastHit.split(' '));
@@ -463,19 +517,27 @@ copyAllBtn.addEventListener('click', function() {
     }
 });
 
+// 自动调整高度 + 转换
 function autoResizeAndConvert(e) {
     var el = e.target;
-    resizeInput(el);
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
     doConvert();
 }
+
 fixedInput.addEventListener('input', autoResizeAndConvert);
 msgInput.addEventListener('input', autoResizeAndConvert);
 
+// 页面加载时调整初始高度
 window.addEventListener('load', function() {
-    resizeInput(fixedInput);
-    resizeInput(msgInput);
+    var els = [fixedInput, msgInput];
+    for (var i = 0; i < els.length; i++) {
+        els[i].style.height = 'auto';
+        els[i].style.height = els[i].scrollHeight + 'px';
+    }
 });
-console.log('✅ 号码转换器已加载');
+
+console.log('✅ 号码转换器已加载（复制已修复）');
 </script>
 </body>
 </html>
