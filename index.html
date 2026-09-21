@@ -396,6 +396,9 @@ function doConvert() {
 
 function clearAll() {
     setMsg('');
+    msgInput.style.height = 'auto';
+    // 清空后高度归位到最小
+    msgInput.style.height = msgInput.scrollHeight + 'px';
     result1Text.textContent = '无数据';
     result2Text.textContent = '无数据';
     hitCount.textContent = '共 0 个';
@@ -438,14 +441,25 @@ function fallbackCopy(text, btn) {
     document.body.removeChild(ta);
 }
 
-// ---------- 粘贴 ----------
+// 追加粘贴：不覆盖原有内容，换行加入
+function appendMsg(text) {
+    var current = getMsg().trim();
+    if (current) {
+        setMsg(current + '\n' + text.trim());
+    } else {
+        setMsg(text.trim());
+    }
+msgInput.style.height = 'auto';
+msgInput.style.height = msgInput.scrollHeight + 'px';
+    doConvert();
+}
+
 pasteBtn.addEventListener('click', function() {
     if (window.AndroidClipboard && window.AndroidClipboard.getText) {
         try {
             var text = window.AndroidClipboard.getText();
             if (text && text.trim()) {
-                setMsg(text.trim());
-                doConvert();
+                appendMsg(text);
                 pasteBtn.textContent = '✅ 已粘贴';
                 setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
                 return;
@@ -455,8 +469,7 @@ pasteBtn.addEventListener('click', function() {
     if (navigator.clipboard && navigator.clipboard.readText) {
         navigator.clipboard.readText().then(function(text) {
             if (text && text.trim()) {
-                setMsg(text.trim());
-                doConvert();
+                appendMsg(text);
                 pasteBtn.textContent = '✅ 已粘贴';
                 setTimeout(function() { pasteBtn.textContent = '📋 粘贴'; }, 1500);
             }
