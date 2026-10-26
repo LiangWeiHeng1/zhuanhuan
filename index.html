@@ -118,7 +118,7 @@ const RULES = {
 const KEYWORDS = Object.keys(RULES);
 
 // ============================================================
-// 自动分行（照搬 index.html 的 autoSplitPureNumberLines）
+// 【新增】index 自动分行函数（原样搬自 index.html）
 // ============================================================
 function autoSplitPureNumberLines(text) {
     if (!text) return text;
@@ -157,6 +157,64 @@ function autoSplitPureNumberLines(text) {
         result = result.concat(parts);
     }
     return result.join('\n');
+}
+
+// ============================================================
+// 【新增】index 输入框预处理
+// 顺序：删字 → 各号→各 → 自动分行 → pendingNumbers 合并
+// ============================================================
+function indexPreprocess(text) {
+    if (!text) return text;
+
+    // 1) 删字（照搬 index 的 removeChars）
+    var removeChars = ['特', '奥', '澳', '新', '复', '式', '特奥', '奥特', '元', '码', '数', '门', '米', '斤'];
+    var cleaned = text;
+    for (var c = 0; c < removeChars.length; c++) {
+        cleaned = cleaned.replaceAll(removeChars[c], '');
+    }
+
+    // 2) 各号→各，并把连续的"各"合并成一个
+    cleaned = cleaned.replaceAll('号', '各');
+    cleaned = cleaned.replace(/各+/g, '各');
+
+    // 3) 自动分行（此时已是 各30 形式，后跟分隔符就断行）
+    var formatted = autoSplitPureNumberLines(cleaned);
+    var rawLines = formatted.split('\n').filter(function(l) { return l.trim(); });
+
+    // 4) pendingNumbers 合并（照搬 index 的合并逻辑）
+    var mergedLines = [];
+    var pendingNumbers = [];
+    for (var i = 0; i < rawLines.length; i++) {
+        var line = rawLines[i].trim();
+        if (!line) continue;
+
+        var isPureNumber = /^[\d，,、.\s]+$/.test(line);
+        var isNumberWithGe = /^[\d，,、.\s]*各[\d，,、.\s]*$/.test(line);
+
+        if (isPureNumber) {
+            var nums = line.match(/\d+/g);
+            if (nums && nums.length > 0) {
+                pendingNumbers.push.apply(pendingNumbers, nums);
+            }
+        } else if (isNumberWithGe && pendingNumbers.length > 0) {
+            var mergedLine = pendingNumbers.join('，') + '，' + line;
+            mergedLine = mergedLine.replace(/各+/g, '各');
+            mergedLines.push(mergedLine);
+            pendingNumbers = [];
+        } else {
+            if (pendingNumbers.length > 0) {
+                mergedLines.push(pendingNumbers.join('，'));
+                pendingNumbers = [];
+            }
+            line = line.replace(/各+/g, '各');
+            mergedLines.push(line);
+        }
+    }
+    if (pendingNumbers.length > 0) {
+        mergedLines.push(pendingNumbers.join('，'));
+    }
+
+    return mergedLines.join('\n');
 }
 
 // ---------- 解析 ----------
@@ -491,9 +549,9 @@ function appendMsg(text) {
     } else {
         setMsg(text.trim());
     }
-    // 自动分行
+    // 走 index 预处理
     var original = getMsg();
-    var formatted = autoSplitPureNumberLines(original);
+    var formatted = indexPreprocess(original);
     if (formatted !== original) {
         setMsg(formatted);
     }
@@ -586,11 +644,11 @@ function autoResizeAndConvert(e) {
     doConvert();
 }
 
-// 号码消息输入：先自动分行，再转换
+// 号码消息输入：先走 index 预处理，再回填、转换
 function onMsgInput(e) {
     var el = e.target;
     var original = el.value;
-    var formatted = autoSplitPureNumberLines(original);
+    var formatted = indexPreprocess(original);
     if (formatted !== original) {
         el.value = formatted;
     }
