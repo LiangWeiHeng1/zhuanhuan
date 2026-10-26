@@ -117,6 +117,48 @@ const RULES = {
 
 const KEYWORDS = Object.keys(RULES);
 
+// ============================================================
+// 自动分行（照搬 index.html 的 autoSplitPureNumberLines）
+// ============================================================
+function autoSplitPureNumberLines(text) {
+    if (!text) return text;
+    var lines = text.split('\n');
+    var result = [];
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) { result.push(''); continue; }
+
+        var isPureNumberLine = /各/.test(line);
+        if (/各[^\d]/.test(line) && !/各组/.test(line)) {
+            result.push(line);
+            continue;
+        }
+        if (!isPureNumberLine) {
+            result.push(line);
+            continue;
+        }
+
+        var splitLine = line.replace(
+            /各(\d+)(?=[.、，,\s\/\-#号]|$)/g,
+            function(match, amount, offset, str) {
+                var rest = str.slice(offset + match.length);
+                if (!rest || !rest.trim()) return match;
+                return match + '\n';
+            }
+        );
+
+        var parts = splitLine.split('\n').map(function(s) {
+            return s.trim();
+        }).filter(function(s) {
+            return s !== '';
+        });
+
+        result = result.concat(parts);
+    }
+    return result.join('\n');
+}
+
 // ---------- 解析 ----------
 function parseInput(text) {
     var result = {};
@@ -449,8 +491,14 @@ function appendMsg(text) {
     } else {
         setMsg(text.trim());
     }
-msgInput.style.height = 'auto';
-msgInput.style.height = msgInput.scrollHeight + 'px';
+    // 自动分行
+    var original = getMsg();
+    var formatted = autoSplitPureNumberLines(original);
+    if (formatted !== original) {
+        setMsg(formatted);
+    }
+    msgInput.style.height = 'auto';
+    msgInput.style.height = msgInput.scrollHeight + 'px';
     doConvert();
 }
 
@@ -538,8 +586,21 @@ function autoResizeAndConvert(e) {
     doConvert();
 }
 
+// 号码消息输入：先自动分行，再转换
+function onMsgInput(e) {
+    var el = e.target;
+    var original = el.value;
+    var formatted = autoSplitPureNumberLines(original);
+    if (formatted !== original) {
+        el.value = formatted;
+    }
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+    doConvert();
+}
+
 fixedInput.addEventListener('input', autoResizeAndConvert);
-msgInput.addEventListener('input', autoResizeAndConvert);
+msgInput.addEventListener('input', onMsgInput);
 
 // 页面加载时调整初始高度
 window.addEventListener('load', function() {
