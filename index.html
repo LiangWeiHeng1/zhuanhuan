@@ -325,8 +325,9 @@
                     const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
                     const weekStr = weekDays[today.getDay()];
                     
+                    // 这里使用了中间点 '·' 代替之前的定位图标
                     const dateString = `${y}.${mo}.${d} ${weekStr}`;
-                    const fullSmallText = `${dateString} 🟟 ${LOCATION}`;
+                    const fullSmallText = `${dateString} · ${LOCATION}`;
                     
                     ctx.font = `500 ${smallFontSize}px -apple-system, sans-serif`;
                     ctx.fillText(fullSmallText, centerX, bottomY);
