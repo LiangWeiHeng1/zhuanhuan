@@ -238,10 +238,10 @@
             <div class="time-group">
                 <input type="time" id="startTimeInput" value="15:00">
                 <span>至</span>
-                <input type="time" id="endTimeInput" value="15:20">
+                <input type="time" id="endTimeInput" value="15:30">
             </div>
         </div>
-                <div class="setting-row">
+        <div class="setting-row">
             <label>⏳ 间隔</label>
             <div class="time-group">
                 <input type="number" id="minGapInput" value="3" min="3" step="1" style="width: 80px;">
@@ -279,7 +279,7 @@
     // --- 配置区 ---
     const DEFAULT_LOCATION = "广州市海珠区瑞海新村";
     const DEFAULT_START_TIME = "15:00";
-    const DEFAULT_END_TIME = "15:20";
+    const DEFAULT_END_TIME = "15:30"; // 默认结束时间已修改为 15:30
     let MIN_GAP = 3; // 默认最小间隔 3 分钟
     const MAX_IMAGES = 6; // 最多 6 张
 
@@ -305,92 +305,98 @@
         return h * 60 + m;
     }
 
-    // --- 全新的时间生成算法 (真·随机版) ---
+    // --- 终极时间生成算法 V3 (第一张随机·绝不超时) ---
     function generateTimes(count) {
         if (count === 0) return [];
         
-        // 动态获取用户输入的最小间隔
+        // 1. 获取用户输入
         const gapInputElement = document.getElementById('minGapInput');
         let userGap = parseInt(gapInputElement.value);
-        // 防呆：小于3或者非数字，强制变成3
         if (isNaN(userGap) || userGap < 3) {
             userGap = 3;
             gapInputElement.value = 3; 
         }
         
-        // 获取用户输入的起止时间
         let startStr = startTimeInput.value || DEFAULT_START_TIME;
         let endStr = endTimeInput.value || DEFAULT_END_TIME;
         
         let startMinutes = timeToMinutes(startStr);
         let endMinutes = timeToMinutes(endStr);
 
-        // 防错：如果结束早于开始，自动互换
         if (endMinutes < startMinutes) {
-            let temp = startMinutes;
-            startMinutes = endMinutes;
-            endMinutes = temp;
+            let temp = startMinutes; startMinutes = endMinutes; endMinutes = temp;
         }
 
-        let totalWindow = endMinutes - startMinutes;
-        const minRequiredSpan = (count - 1) * userGap;
+        let totalWindowSeconds = (endMinutes - startMinutes) * 60;
         
-        // 兜底：如果用户选的区间太小，根本塞不下这么多图，强行拉长结束时间
-        if (minRequiredSpan > totalWindow) {
-            totalWindow = minRequiredSpan;
-            endMinutes = startMinutes + totalWindow;
+        // 2. 计算时间
+        // 给第一张图留出随机的“起步延迟”：0 到 (间隔分钟-1) 之间随机
+        let maxStartDelayMin = userGap - 1; 
+        let startDelaySeconds = Math.floor(Math.random() * maxStartDelayMin * 60);
+        
+        // 加上第一张延迟后，剩下的时间用来给后面的图做间隔
+        let minRequiredSpan = (count - 1) * userGap * 60;
+        
+        // 如果时间不够，就把总窗口拉长，保证所有图放得下
+        if (minRequiredSpan + startDelaySeconds > totalWindowSeconds) {
+            totalWindowSeconds = minRequiredSpan + startDelaySeconds;
         }
 
-        // 计算所有间隔可以额外分配的浮动时间（总分钟数）
-        let remainingFlexMinutes = totalWindow - minRequiredSpan;
-        
-        // 随机生成 count-1 个间隔的“权重”（为了不让间隔太均匀）
-        let weights = [];
+        // 剩余的机动秒数（扣除第一张的延迟 + 最小间隔跨度）
+        let remainingFlexSeconds = totalWindowSeconds - minRequiredSpan - startDelaySeconds;
+
+        let intervalsSeconds = [];
         let totalWeight = 0;
+        let weights = [];
+
         for (let i = 0; i < count - 1; i++) {
-            // 使用 Math.pow 让随机分布呈现不均匀状态，比如有的间隔吃到大把时间，有的只吃到一点点
-            let w = Math.pow(Math.random(), 1.5) + 0.1; 
+            let w = Math.random() + 0.1; 
             weights.push(w);
             totalWeight += w;
         }
 
-        let intervals = [];
-        let allocatedMinutes = 0;
-        
-        // 按照权重分配浮动时间
+        let allocatedFlexSeconds = 0;
+
         for (let i = 0; i < count - 1; i++) {
-            let flexForThisInterval = (weights[i] / totalWeight) * remainingFlexMinutes;
-            // 加上硬性要求的 userGap
-            let thisIntervalTotal = userGap + flexForThisInterval;
+            let flexForThis = Math.floor((weights[i] / totalWeight) * remainingFlexSeconds);
             
-            // 把分钟转换成秒，并保留随机秒数
-            let intervalSeconds = Math.floor(thisIntervalTotal * 60);
+            // 最后一个间隔吃掉所有剩余的零头，保证总时间精确
+            if (i === count - 2) {
+                flexForThis = remainingFlexSeconds - allocatedFlexSeconds;
+            }
             
-            intervals.push(intervalSeconds);
-            allocatedMinutes += flexForThisInterval;
+            let baseSeconds = userGap * 60;
+            let thisIntervalSeconds = baseSeconds + flexForThis;
+            
+            if (thisIntervalSeconds < baseSeconds) thisIntervalSeconds = baseSeconds;
+
+            intervalsSeconds.push(thisIntervalSeconds);
+            allocatedFlexSeconds += flexForThis;
         }
 
+        // 3. 生成最终时间点
         let times = [];
-        let currentSeconds = startMinutes * 60;
+        // 第一张图：起始时间 + 起步延迟 + 随机秒数
+        let currentSeconds = (startMinutes * 60) + startDelaySeconds + Math.floor(Math.random() * 60);
         
-        // 计算并生成具体时间点
         for (let i = 0; i < count; i++) {
-            // 第一张图稍微加一点随机的秒数（0-59秒），显得更真实
-            let extraSec = i === 0 ? Math.floor(Math.random() * 59) : 0;
-            let displaySeconds = currentSeconds + extraSec;
-            
-            let h = Math.floor(displaySeconds / 3600) % 24;
-            let m = Math.floor((displaySeconds % 3600) / 60);
+            let h = Math.floor(currentSeconds / 3600) % 24;
+            let m = Math.floor((currentSeconds % 3600) / 60);
             
             times.push({
                 h: String(h).padStart(2, '0'),
                 m: String(m).padStart(2, '0')
             });
 
-            // 加上当前的间隔，进入下一张
             if (i < count - 1) {
-                currentSeconds += intervals[i];
+                currentSeconds += intervalsSeconds[i];
             }
+        }
+
+        // 4. 兜底防超时（防止第一张随机加太多导致超限）
+        let lastTime = times[times.length - 1];
+        if (parseInt(lastTime.h) === parseInt(endStr.split(':')[0]) && parseInt(lastTime.m) > parseInt(endStr.split(':')[1])) {
+            lastTime.m = endStr.split(':')[1];
         }
 
         return times;
