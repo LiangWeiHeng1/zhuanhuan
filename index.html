@@ -305,8 +305,8 @@
         return h * 60 + m;
     }
 
-    // --- 时间生成算法 ---
-function generateTimes(count) {
+    // --- 全新的时间生成算法 (真·随机版) ---
+    function generateTimes(count) {
         if (count === 0) return [];
         
         // 动态获取用户输入的最小间隔
@@ -315,11 +315,10 @@ function generateTimes(count) {
         // 防呆：小于3或者非数字，强制变成3
         if (isNaN(userGap) || userGap < 3) {
             userGap = 3;
-            gapInputElement.value = 3; // 顺便修正界面上显示的数字
+            gapInputElement.value = 3; 
         }
-        MIN_GAP = userGap;
         
-        // 获取用户输入的起止时间，如果没填就用默认
+        // 获取用户输入的起止时间
         let startStr = startTimeInput.value || DEFAULT_START_TIME;
         let endStr = endTimeInput.value || DEFAULT_END_TIME;
         
@@ -333,56 +332,64 @@ function generateTimes(count) {
             endMinutes = temp;
         }
 
-        // 限制最大时间窗口为20分钟（防止用户输入跨度过大）
         let totalWindow = endMinutes - startMinutes;
-        if (totalWindow > 20) {
-            endMinutes = startMinutes + 20;
-            totalWindow = 20;
-        }
+        const minRequiredSpan = (count - 1) * userGap;
         
-        const minRequiredSpan = (count - 1) * MIN_GAP;
-        // 如果图片太多，时间窗口不够排，强制把窗口拉到足够大
+        // 兜底：如果用户选的区间太小，根本塞不下这么多图，强行拉长结束时间
         if (minRequiredSpan > totalWindow) {
-            endMinutes = startMinutes + minRequiredSpan;
             totalWindow = minRequiredSpan;
+            endMinutes = startMinutes + totalWindow;
         }
+
+        // 计算所有间隔可以额外分配的浮动时间（总分钟数）
+        let remainingFlexMinutes = totalWindow - minRequiredSpan;
         
-        let remainingFlex = totalWindow - minRequiredSpan;
-        let intervals = [];
-        
+        // 随机生成 count-1 个间隔的“权重”（为了不让间隔太均匀）
+        let weights = [];
+        let totalWeight = 0;
         for (let i = 0; i < count - 1; i++) {
-            let maxAdd = remainingFlex;
-            let add = 0;
-            if (i === count - 2) {
-                add = maxAdd; 
-            } else {
-                add = Math.random() * (maxAdd / (count - 1 - i)); 
-            }
-            let addSeconds = Math.floor(add * 60 * Math.random()); 
-            intervals.push({ minutes: MIN_GAP, extraSeconds: addSeconds });
-            remainingFlex -= (addSeconds / 60);
-            if (remainingFlex < 0) remainingFlex = 0;
+            // 使用 Math.pow 让随机分布呈现不均匀状态，比如有的间隔吃到大把时间，有的只吃到一点点
+            let w = Math.pow(Math.random(), 1.5) + 0.1; 
+            weights.push(w);
+            totalWeight += w;
+        }
+
+        let intervals = [];
+        let allocatedMinutes = 0;
+        
+        // 按照权重分配浮动时间
+        for (let i = 0; i < count - 1; i++) {
+            let flexForThisInterval = (weights[i] / totalWeight) * remainingFlexMinutes;
+            // 加上硬性要求的 userGap
+            let thisIntervalTotal = userGap + flexForThisInterval;
+            
+            // 把分钟转换成秒，并保留随机秒数
+            let intervalSeconds = Math.floor(thisIntervalTotal * 60);
+            
+            intervals.push(intervalSeconds);
+            allocatedMinutes += flexForThisInterval;
         }
 
         let times = [];
-        let currentMinutes = startMinutes;
+        let currentSeconds = startMinutes * 60;
         
+        // 计算并生成具体时间点
         for (let i = 0; i < count; i++) {
-            let startExtraSec = i === 0 ? Math.floor(Math.random() * 59) : 0;
-            let totalSeconds = (currentMinutes * 60) + startExtraSec;
+            // 第一张图稍微加一点随机的秒数（0-59秒），显得更真实
+            let extraSec = i === 0 ? Math.floor(Math.random() * 59) : 0;
+            let displaySeconds = currentSeconds + extraSec;
             
-            let h = Math.floor(totalSeconds / 3600) % 24;
-            let m = Math.floor((totalSeconds % 3600) / 60);
+            let h = Math.floor(displaySeconds / 3600) % 24;
+            let m = Math.floor((displaySeconds % 3600) / 60);
             
             times.push({
                 h: String(h).padStart(2, '0'),
                 m: String(m).padStart(2, '0')
             });
 
+            // 加上当前的间隔，进入下一张
             if (i < count - 1) {
-                let gapM = intervals[i].minutes;
-                let gapS = intervals[i].extraSeconds;
-                currentMinutes += gapM + (gapS / 60);
+                currentSeconds += intervals[i];
             }
         }
 
