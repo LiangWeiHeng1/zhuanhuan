@@ -136,32 +136,35 @@
             gap: 16px;
         }
         
+        /* 改为三列小图网格展示 */
         .gallery {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
         }
         .img-card {
             background: white;
-            border-radius: 16px;
+            border-radius: 8px;
             overflow: hidden;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             position: relative;
+            aspect-ratio: 3/4; /* 保持竖图比例 */
         }
         .img-card img {
             width: 100%;
+            height: 100%;
+            object-fit: cover;
             display: block;
-            height: auto;
         }
         .img-badge {
             position: absolute;
-            top: 12px;
-            left: 12px;
+            bottom: 4px;
+            left: 4px;
             background: rgba(0,0,0,0.7);
             color: white;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 13px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
             font-weight: 500;
             backdrop-filter: blur(4px);
         }
@@ -260,6 +263,7 @@
     <div class="loading" id="loadingText">正在生成水印，请稍候...</div>
 
     <div class="preview-section" id="previewSection">
+        <!-- 展示小图，但背后的生成数据是原图 -->
         <div class="gallery" id="gallery"></div>
         
         <button class="btn-share" id="shareBtn">
@@ -270,7 +274,7 @@
             </svg>
             一键保存全部到相册
         </button>
-        <div class="tips">点击上方按钮，在弹出的菜单中选择“存储 X 张图像”即可全部保存</div>
+        <div class="tips">点击上方按钮，在弹出的菜单中选择“存储 X 张图像”即可全部保存原图</div>
         
         <button class="btn-reset" id="resetBtn">重新选择图片</button>
     </div>
@@ -336,7 +340,6 @@
         let weights = [];
         let totalWeight = 0;
         for (let i = 0; i < count; i++) {
-            // 使用 Math.pow 让权重差异变大，有的间隔会拉得很长，有的很短
             let w = Math.pow(Math.random(), 2) + 0.1; 
             weights.push(w);
             totalWeight += w;
@@ -350,10 +353,8 @@
             relativePositions.push(currentRelative);
         }
         
-        // 强制第一张在最开始，最后一张在最后（但不一定是绝对 100%，留有随机余地）
-        // 为了避免最后一张卡死，我们故意不把最后一张放在 1.0，而是留一点点空间
-        relativePositions[0] = Math.random() * 0.1; // 第一张随机延迟 0~10%
-        relativePositions[count - 1] = 0.95 + Math.random() * 0.05; // 最后一张在 95%~100% 之间
+        relativePositions[0] = Math.random() * 0.1; 
+        relativePositions[count - 1] = 0.95 + Math.random() * 0.05; 
 
         // 3. 将相对位置映射到真实时间，并保证最小间隔
         let timesSeconds = [];
@@ -374,7 +375,6 @@
         let maxAllowedSeconds = totalWindowSeconds;
         if (timesSeconds[count - 1] > maxAllowedSeconds) {
             let overflow = timesSeconds[count - 1] - maxAllowedSeconds;
-            // 把超出的部分平摊给前面所有的图片
             for (let i = 1; i < count; i++) {
                 timesSeconds[i] -= overflow * (i / (count - 1));
             }
@@ -485,6 +485,7 @@
         try {
             for (let i = 0; i < files.length; i++) {
                 const result = await processImage(files[i], times[i], currentLocation);
+                // 这里存储的依然是 100% 高清的原尺寸 Blob
                 generatedBlobs.push(result.blob); 
                 
                 const card = document.createElement('div');
@@ -522,6 +523,7 @@
 
         if (navigator.canShare && navigator.canShare({ files: generatedBlobs.map((b, i) => new File([b], `打卡_${i+1}.jpg`, { type: 'image/jpeg' })) })) {
             try {
+                // 这里取出的文件依然是 100% 高清的原尺寸
                 const filesToShare = generatedBlobs.map((b, i) => new File([b], `打卡_${i+1}.jpg`, { type: 'image/jpeg' }));
                 await navigator.share({
                     files: filesToShare,
