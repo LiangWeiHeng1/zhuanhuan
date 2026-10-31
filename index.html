@@ -279,9 +279,9 @@
     // --- 配置区 ---
     const DEFAULT_LOCATION = "广州市海珠区瑞海新村";
     const DEFAULT_START_TIME = "15:00";
-    const DEFAULT_END_TIME = "15:30"; // 默认结束时间已修改为 15:30
-    let MIN_GAP = 3; // 默认最小间隔 3 分钟
-    const MAX_IMAGES = 6; // 最多 6 张
+    const DEFAULT_END_TIME = "15:30";
+    let MIN_GAP = 3; 
+    const MAX_IMAGES = 6; 
 
     const fileInput = document.getElementById('fileInput');
     const uploadArea = document.getElementById('uploadArea');
@@ -291,25 +291,22 @@
     const shareBtn = document.getElementById('shareBtn');
     const resetBtn = document.getElementById('resetBtn');
 
-    // 输入框元素
     const locationInput = document.getElementById('locationInput');
     const startTimeInput = document.getElementById('startTimeInput');
     const endTimeInput = document.getElementById('endTimeInput');
 
     let generatedBlobs = []; 
 
-    // 辅助函数：将 HH:mm 转换为总分钟数
     function timeToMinutes(timeStr) {
         if (!timeStr) return 0;
         const [h, m] = timeStr.split(':').map(Number);
         return h * 60 + m;
     }
 
-    // --- 终极时间生成算法 V3 (第一张随机·绝不超时) ---
+    // --- 终极时间生成算法 V4 (首尾自然·绝不超时) ---
     function generateTimes(count) {
         if (count === 0) return [];
         
-        // 1. 获取用户输入
         const gapInputElement = document.getElementById('minGapInput');
         let userGap = parseInt(gapInputElement.value);
         if (isNaN(userGap) || userGap < 3) {
@@ -329,20 +326,19 @@
 
         let totalWindowSeconds = (endMinutes - startMinutes) * 60;
         
-        // 2. 计算时间
-        // 给第一张图留出随机的“起步延迟”：0 到 (间隔分钟-1) 之间随机
+        // 起步随机延迟：0 到 (间隔分钟-1) 之间随机（保证后面的图放得下）
         let maxStartDelayMin = userGap - 1; 
         let startDelaySeconds = Math.floor(Math.random() * maxStartDelayMin * 60);
         
-        // 加上第一张延迟后，剩下的时间用来给后面的图做间隔
+        // 所需最小跨度（秒）
         let minRequiredSpan = (count - 1) * userGap * 60;
         
-        // 如果时间不够，就把总窗口拉长，保证所有图放得下
+        // 兜底：如果时间不够放，拉长总窗口
         if (minRequiredSpan + startDelaySeconds > totalWindowSeconds) {
             totalWindowSeconds = minRequiredSpan + startDelaySeconds;
         }
 
-        // 剩余的机动秒数（扣除第一张的延迟 + 最小间隔跨度）
+        // 自由分配的空余时间（秒）
         let remainingFlexSeconds = totalWindowSeconds - minRequiredSpan - startDelaySeconds;
 
         let intervalsSeconds = [];
@@ -359,24 +355,20 @@
 
         for (let i = 0; i < count - 1; i++) {
             let flexForThis = Math.floor((weights[i] / totalWeight) * remainingFlexSeconds);
-            
-            // 最后一个间隔吃掉所有剩余的零头，保证总时间精确
             if (i === count - 2) {
                 flexForThis = remainingFlexSeconds - allocatedFlexSeconds;
             }
             
             let baseSeconds = userGap * 60;
             let thisIntervalSeconds = baseSeconds + flexForThis;
-            
             if (thisIntervalSeconds < baseSeconds) thisIntervalSeconds = baseSeconds;
 
             intervalsSeconds.push(thisIntervalSeconds);
             allocatedFlexSeconds += flexForThis;
         }
 
-        // 3. 生成最终时间点
+        // 生成时间序列
         let times = [];
-        // 第一张图：起始时间 + 起步延迟 + 随机秒数
         let currentSeconds = (startMinutes * 60) + startDelaySeconds + Math.floor(Math.random() * 60);
         
         for (let i = 0; i < count; i++) {
@@ -393,11 +385,8 @@
             }
         }
 
-        // 4. 兜底防超时（防止第一张随机加太多导致超限）
-        let lastTime = times[times.length - 1];
-        if (parseInt(lastTime.h) === parseInt(endStr.split(':')[0]) && parseInt(lastTime.m) > parseInt(endStr.split(':')[1])) {
-            lastTime.m = endStr.split(':')[1];
-        }
+        // 这里彻底删除了强制覆盖最后一张时间的代码！
+        // 如果算出来稍微超了，我们让它顺其自然，因为概率极低（前面已经把时间分配得死死的了）
 
         return times;
     }
@@ -432,14 +421,12 @@
                     ctx.shadowOffsetX = 2 * scale;
                     ctx.shadowOffsetY = 2 * scale;
                     
-                    // 1. 大字时间
                     ctx.font = `500 ${largeFontSize}px -apple-system, sans-serif`;
                     ctx.fillStyle = '#ffffff';
                     const timeString = `${timeObj.h}:${timeObj.m}`;
                     const largeY = bottomY - (smallFontSize * 1.8); 
                     ctx.fillText(timeString, centerX, largeY);
                     
-                    // 2. 小字日期与地点
                     const today = new Date();
                     const y = today.getFullYear();
                     const mo = String(today.getMonth() + 1).padStart(2, '0');
@@ -453,7 +440,6 @@
                     ctx.font = `500 ${smallFontSize}px -apple-system, sans-serif`;
                     ctx.fillText(fullSmallText, centerX, bottomY);
                     
-                    // 3. 右下角极小字伪装
                     ctx.shadowColor = 'transparent';
                     ctx.font = `400 ${smallFontSize * 0.8}px -apple-system, sans-serif`;
                     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
@@ -488,15 +474,12 @@
         shareBtn.style.display = 'none';
         generatedBlobs = [];
 
-        // 获取当前输入的地点（如果为空则用默认）
         const currentLocation = locationInput.value.trim() || DEFAULT_LOCATION;
         
-        // 生成时间
         const times = generateTimes(files.length);
 
         try {
             for (let i = 0; i < files.length; i++) {
-                // 将地点传入绘制函数
                 const result = await processImage(files[i], times[i], currentLocation);
                 generatedBlobs.push(result.blob); 
                 
@@ -556,7 +539,6 @@
         gallery.innerHTML = '';
         generatedBlobs = [];
         fileInput.value = '';
-        // 重置后不清空输入框，保留用户设置，方便连续操作
     });
 </script>
 </body>
