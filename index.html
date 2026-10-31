@@ -303,7 +303,7 @@
         return h * 60 + m;
     }
 
-    // --- 终极时间生成算法 V4 (首尾自然·绝不超时) ---
+    // --- 终极时间生成算法 V5 (完全随机游走) ---
     function generateTimes(count) {
         if (count === 0) return [];
         
@@ -326,67 +326,71 @@
 
         let totalWindowSeconds = (endMinutes - startMinutes) * 60;
         
-        // 起步随机延迟：0 到 (间隔分钟-1) 之间随机（保证后面的图放得下）
-        let maxStartDelayMin = userGap - 1; 
-        let startDelaySeconds = Math.floor(Math.random() * maxStartDelayMin * 60);
-        
-        // 所需最小跨度（秒）
-        let minRequiredSpan = (count - 1) * userGap * 60;
-        
-        // 兜底：如果时间不够放，拉长总窗口
-        if (minRequiredSpan + startDelaySeconds > totalWindowSeconds) {
-            totalWindowSeconds = minRequiredSpan + startDelaySeconds;
+        // 如果连最基础的间隔都塞不下，强制加长区间
+        let minRequiredSeconds = (count - 1) * userGap * 60;
+        if (minRequiredSeconds > totalWindowSeconds) {
+            totalWindowSeconds = minRequiredSeconds;
         }
 
-        // 自由分配的空余时间（秒）
-        let remainingFlexSeconds = totalWindowSeconds - minRequiredSpan - startDelaySeconds;
-
-        let intervalsSeconds = [];
-        let totalWeight = 0;
+        // 1. 生成一串完全随机的权重
         let weights = [];
-
-        for (let i = 0; i < count - 1; i++) {
-            let w = Math.random() + 0.1; 
+        let totalWeight = 0;
+        for (let i = 0; i < count; i++) {
+            // 使用 Math.pow 让权重差异变大，有的间隔会拉得很长，有的很短
+            let w = Math.pow(Math.random(), 2) + 0.1; 
             weights.push(w);
             totalWeight += w;
         }
 
-        let allocatedFlexSeconds = 0;
-
+        // 2. 计算所有图片的“相对位置”（从 0 到 1，完全随机）
+        let relativePositions = [0];
+        let currentRelative = 0;
         for (let i = 0; i < count - 1; i++) {
-            let flexForThis = Math.floor((weights[i] / totalWeight) * remainingFlexSeconds);
-            if (i === count - 2) {
-                flexForThis = remainingFlexSeconds - allocatedFlexSeconds;
-            }
-            
-            let baseSeconds = userGap * 60;
-            let thisIntervalSeconds = baseSeconds + flexForThis;
-            if (thisIntervalSeconds < baseSeconds) thisIntervalSeconds = baseSeconds;
+            currentRelative += weights[i] / totalWeight;
+            relativePositions.push(currentRelative);
+        }
+        
+        // 强制第一张在最开始，最后一张在最后（但不一定是绝对 100%，留有随机余地）
+        // 为了避免最后一张卡死，我们故意不把最后一张放在 1.0，而是留一点点空间
+        relativePositions[0] = Math.random() * 0.1; // 第一张随机延迟 0~10%
+        relativePositions[count - 1] = 0.95 + Math.random() * 0.05; // 最后一张在 95%~100% 之间
 
-            intervalsSeconds.push(thisIntervalSeconds);
-            allocatedFlexSeconds += flexForThis;
+        // 3. 将相对位置映射到真实时间，并保证最小间隔
+        let timesSeconds = [];
+        for (let i = 0; i < count; i++) {
+            let rawSeconds = relativePositions[i] * totalWindowSeconds;
+            timesSeconds.push(rawSeconds);
         }
 
-        // 生成时间序列
+        // 4. 强制校验：如果相邻两张小于最小间隔，就往后推
+        for (let i = 1; i < count; i++) {
+            let minAllowed = timesSeconds[i - 1] + (userGap * 60);
+            if (timesSeconds[i] < minAllowed) {
+                timesSeconds[i] = minAllowed;
+            }
+        }
+
+        // 5. 如果因为往后推，导致最后一张超过了总时间，那就整体往前压
+        let maxAllowedSeconds = totalWindowSeconds;
+        if (timesSeconds[count - 1] > maxAllowedSeconds) {
+            let overflow = timesSeconds[count - 1] - maxAllowedSeconds;
+            // 把超出的部分平摊给前面所有的图片
+            for (let i = 1; i < count; i++) {
+                timesSeconds[i] -= overflow * (i / (count - 1));
+            }
+        }
+
+        // 6. 格式化为 HH:mm
         let times = [];
-        let currentSeconds = (startMinutes * 60) + startDelaySeconds + Math.floor(Math.random() * 60);
-        
         for (let i = 0; i < count; i++) {
-            let h = Math.floor(currentSeconds / 3600) % 24;
-            let m = Math.floor((currentSeconds % 3600) / 60);
-            
+            let finalSeconds = startMinutes * 60 + timesSeconds[i];
+            let h = Math.floor(finalSeconds / 3600) % 24;
+            let m = Math.floor((finalSeconds % 3600) / 60);
             times.push({
                 h: String(h).padStart(2, '0'),
                 m: String(m).padStart(2, '0')
             });
-
-            if (i < count - 1) {
-                currentSeconds += intervalsSeconds[i];
-            }
         }
-
-        // 这里彻底删除了强制覆盖最后一张时间的代码！
-        // 如果算出来稍微超了，我们让它顺其自然，因为概率极低（前面已经把时间分配得死死的了）
 
         return times;
     }
