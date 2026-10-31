@@ -23,7 +23,9 @@
         }
         .header {
             text-align: center;
-            margin-bottom: 24px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px;
         }
         .header h1 {
             font-size: 22px;
@@ -31,12 +33,61 @@
             margin-bottom: 8px;
             margin-top: 0;
         }
-        .header p {
-            color: #64748b;
-            font-size: 13px;
-            margin: 0;
-            line-height: 1.6;
+        
+        /* 设置面板样式 */
+        .settings-panel {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            width: 100%;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
+        .setting-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .setting-row label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            white-space: nowrap;
+            width: 70px;
+        }
+        .setting-row input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #1e293b;
+            background: #f8fafc;
+            outline: none;
+            transition: all 0.2s;
+        }
+        .setting-row input:focus {
+            border-color: #3b82f6;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+        }
+        .time-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+        .time-group input {
+            width: 100%;
+        }
+        .time-group span {
+            color: #64748b;
+            font-size: 14px;
+        }
+
         .upload-area {
             background: white;
             border: 2px dashed #cbd5e1;
@@ -173,15 +224,30 @@
 <body>
 
     <div class="header">
-        <h1>🟟 现场打卡水印</h1>
-        <p>地点固定：广州市海珠区瑞海新村<br>时间生成：15:00 - 15:20 (按顺序递增)</p>
+        <h1>📸 现场打卡水印</h1>
+    </div>
+
+    <!-- 自定义设置面板 -->
+    <div class="settings-panel">
+        <div class="setting-row">
+            <label>📍 地点</label>
+            <input type="text" id="locationInput" placeholder="广州市海珠区瑞海新村" value="广州市海珠区瑞海新村">
+        </div>
+        <div class="setting-row">
+            <label>⏰ 时间</label>
+            <div class="time-group">
+                <input type="time" id="startTimeInput" value="15:00">
+                <span>至</span>
+                <input type="time" id="endTimeInput" value="15:20">
+            </div>
+        </div>
     </div>
 
     <div class="upload-area" id="uploadArea">
         <input type="file" id="fileInput" accept="image/*" multiple>
-        <div class="upload-icon">🟟</div>
+        <div class="upload-icon">📁</div>
         <div class="upload-text">点击选择照片 (最多6张)</div>
-        <div class="upload-hint">请一次性多选，系统会自动排布时间</div>
+        <div class="upload-hint">系统会根据上方时间段自动排布时间</div>
     </div>
 
     <div class="loading" id="loadingText">正在生成水印，请稍候...</div>
@@ -204,9 +270,9 @@
 
 <script>
     // --- 配置区 ---
-    const LOCATION = "广州市海珠区瑞海新村";
-    const START_MINUTES = 15 * 60; // 15:00 (900)
-    const END_MINUTES = 15 * 60 + 20; // 15:20 (920)
+    const DEFAULT_LOCATION = "广州市海珠区瑞海新村";
+    const DEFAULT_START_TIME = "15:00";
+    const DEFAULT_END_TIME = "15:20";
     const MIN_GAP = 3; // 最小间隔 3 分钟
     const MAX_IMAGES = 6; // 最多 6 张
 
@@ -218,14 +284,51 @@
     const shareBtn = document.getElementById('shareBtn');
     const resetBtn = document.getElementById('resetBtn');
 
-    let generatedBlobs = []; // 保存生成的 Blob 数据，用于分享保存
+    // 输入框元素
+    const locationInput = document.getElementById('locationInput');
+    const startTimeInput = document.getElementById('startTimeInput');
+    const endTimeInput = document.getElementById('endTimeInput');
+
+    let generatedBlobs = []; 
+
+    // 辅助函数：将 HH:mm 转换为总分钟数
+    function timeToMinutes(timeStr) {
+        if (!timeStr) return 0;
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    }
 
     // --- 时间生成算法 ---
     function generateTimes(count) {
         if (count === 0) return [];
         
-        const totalWindow = END_MINUTES - START_MINUTES; 
+        // 获取用户输入的起止时间，如果没填就用默认
+        let startStr = startTimeInput.value || DEFAULT_START_TIME;
+        let endStr = endTimeInput.value || DEFAULT_END_TIME;
+        
+        let startMinutes = timeToMinutes(startStr);
+        let endMinutes = timeToMinutes(endStr);
+
+        // 防错：如果结束早于开始，自动互换
+        if (endMinutes < startMinutes) {
+            let temp = startMinutes;
+            startMinutes = endMinutes;
+            endMinutes = temp;
+        }
+
+        // 限制最大时间窗口为20分钟（防止用户输入跨度过大）
+        let totalWindow = endMinutes - startMinutes;
+        if (totalWindow > 20) {
+            endMinutes = startMinutes + 20;
+            totalWindow = 20;
+        }
+        
         const minRequiredSpan = (count - 1) * MIN_GAP;
+        // 如果图片太多，时间窗口不够排，强制把窗口拉到足够大
+        if (minRequiredSpan > totalWindow) {
+            endMinutes = startMinutes + minRequiredSpan;
+            totalWindow = minRequiredSpan;
+        }
         
         let remainingFlex = totalWindow - minRequiredSpan;
         let intervals = [];
@@ -245,7 +348,7 @@
         }
 
         let times = [];
-        let currentMinutes = START_MINUTES;
+        let currentMinutes = startMinutes;
         
         for (let i = 0; i < count; i++) {
             let startExtraSec = i === 0 ? Math.floor(Math.random() * 59) : 0;
@@ -266,17 +369,11 @@
             }
         }
 
-        // 兜底防止超过 15:20
-        let lastTime = times[times.length - 1];
-        if (parseInt(lastTime.h) === 15 && parseInt(lastTime.m) > 20) {
-            lastTime.m = "20";
-        }
-
         return times;
     }
 
     // --- 绘制水印 ---
-    function processImage(file, timeObj) {
+    function processImage(file, timeObj, locationStr) {
         return new Promise((resolve) => {
             const img = new Image();
             const reader = new FileReader();
@@ -286,25 +383,20 @@
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    // 画布尺寸 = 原图尺寸，绝对不压缩
                     canvas.width = img.width;
                     canvas.height = img.height;
                     ctx.drawImage(img, 0, 0);
                     
-                    // 根据原图宽度自适应字体大小 (以 800 宽为基准)
                     const scale = canvas.width / 800;
                     const largeFontSize = Math.max(60, 90 * scale); 
                     const smallFontSize = Math.max(20, 26 * scale); 
                     
-                    // 居中下方位
                     const centerX = canvas.width / 2;
-                    // 距离底部留出一定空间
                     const bottomY = canvas.height - (smallFontSize * 3);
                     
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'bottom';
                     
-                    // 黑色阴影保证清晰
                     ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
                     ctx.shadowBlur = 12 * scale;
                     ctx.shadowOffsetX = 2 * scale;
@@ -325,9 +417,8 @@
                     const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
                     const weekStr = weekDays[today.getDay()];
                     
-                    // 这里使用了中间点 '·' 代替之前的定位图标
                     const dateString = `${y}.${mo}.${d} ${weekStr}`;
-                    const fullSmallText = `${dateString} · ${LOCATION}`;
+                    const fullSmallText = `${dateString} · ${locationStr}`;
                     
                     ctx.font = `500 ${smallFontSize}px -apple-system, sans-serif`;
                     ctx.fillText(fullSmallText, centerX, bottomY);
@@ -339,7 +430,6 @@
                     ctx.textAlign = 'right';
                     ctx.fillText('水印相机', canvas.width - (20 * scale), canvas.height - (20 * scale));
 
-                    // 生成 JPG 格式（苹果分享存图兼容性最好）
                     canvas.toBlob((blob) => {
                         const url = URL.createObjectURL(blob);
                         resolve({ blob, url, timeString });
@@ -356,7 +446,6 @@
         let files = Array.from(e.target.files);
         if (files.length === 0) return;
         
-        // 超过6张截断
         if (files.length > MAX_IMAGES) {
             alert(`系统检测到超过 ${MAX_IMAGES} 张图片，已为您自动保留前 ${MAX_IMAGES} 张。`);
             files = files.slice(0, MAX_IMAGES);
@@ -369,12 +458,17 @@
         shareBtn.style.display = 'none';
         generatedBlobs = [];
 
+        // 获取当前输入的地点（如果为空则用默认）
+        const currentLocation = locationInput.value.trim() || DEFAULT_LOCATION;
+        
+        // 生成时间
         const times = generateTimes(files.length);
 
         try {
             for (let i = 0; i < files.length; i++) {
-                const result = await processImage(files[i], times[i]);
-                generatedBlobs.push(result.blob); // 保存 blob 用于一键分享
+                // 将地点传入绘制函数
+                const result = await processImage(files[i], times[i], currentLocation);
+                generatedBlobs.push(result.blob); 
                 
                 const card = document.createElement('div');
                 card.className = 'img-card';
@@ -409,7 +503,6 @@
     shareBtn.addEventListener('click', async () => {
         if (generatedBlobs.length === 0) return;
 
-        // 检查浏览器是否支持分享文件
         if (navigator.canShare && navigator.canShare({ files: generatedBlobs.map((b, i) => new File([b], `打卡_${i+1}.jpg`, { type: 'image/jpeg' })) })) {
             try {
                 const filesToShare = generatedBlobs.map((b, i) => new File([b], `打卡_${i+1}.jpg`, { type: 'image/jpeg' }));
@@ -419,7 +512,6 @@
                     text: '已生成带时间地点的打卡图片'
                 });
             } catch (err) {
-                // 用户取消分享会报错，直接忽略即可
                 console.log('分享取消或失败', err);
             }
         } else {
@@ -434,6 +526,7 @@
         gallery.innerHTML = '';
         generatedBlobs = [];
         fileInput.value = '';
+        // 重置后不清空输入框，保留用户设置，方便连续操作
     });
 </script>
 </body>
