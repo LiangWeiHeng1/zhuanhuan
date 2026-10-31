@@ -241,6 +241,13 @@
                 <input type="time" id="endTimeInput" value="15:20">
             </div>
         </div>
+                <div class="setting-row">
+            <label>⏳ 间隔</label>
+            <div class="time-group">
+                <input type="number" id="minGapInput" value="3" min="3" step="1" style="width: 80px;">
+                <span>分钟以上</span>
+            </div>
+        </div>
     </div>
 
     <div class="upload-area" id="uploadArea">
@@ -273,7 +280,7 @@
     const DEFAULT_LOCATION = "广州市海珠区瑞海新村";
     const DEFAULT_START_TIME = "15:00";
     const DEFAULT_END_TIME = "15:20";
-    const MIN_GAP = 3; // 最小间隔 3 分钟
+    let MIN_GAP = 3; // 默认最小间隔 3 分钟
     const MAX_IMAGES = 6; // 最多 6 张
 
     const fileInput = document.getElementById('fileInput');
@@ -299,8 +306,18 @@
     }
 
     // --- 时间生成算法 ---
-    function generateTimes(count) {
+function generateTimes(count) {
         if (count === 0) return [];
+        
+        // 动态获取用户输入的最小间隔
+        const gapInputElement = document.getElementById('minGapInput');
+        let userGap = parseInt(gapInputElement.value);
+        // 防呆：小于3或者非数字，强制变成3
+        if (isNaN(userGap) || userGap < 3) {
+            userGap = 3;
+            gapInputElement.value = 3; // 顺便修正界面上显示的数字
+        }
+        MIN_GAP = userGap;
         
         // 获取用户输入的起止时间，如果没填就用默认
         let startStr = startTimeInput.value || DEFAULT_START_TIME;
