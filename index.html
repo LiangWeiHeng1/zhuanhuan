@@ -1,158 +1,439 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>线路三直播</title>
-  
-  <style>
-    body { background:#000; margin:0; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh; overflow:hidden; font-family:sans-serif;}
-    
-    #player-container { width:100%; flex:1; position:relative; overflow:hidden; display: flex; justify-content: center; align-items: center;}
-    #video { width:100%; height:100%; object-fit:contain; position: absolute; top:0; left:0;}
-    
-    /* 居中面板 */
-    #center-panel {
-      position: absolute;
-      top: 50%; left: 50%; 
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.85);
-      border: 2px solid #444;
-      border-radius: 12px;
-      padding: 30px 50px;
-      text-align: center;
-      z-index: 999;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-    
-    /* 倒计时区域 */
-    #countdown-title { color: #fff; font-size: 18px; margin-bottom: 15px; }
-    #countdown-box { 
-      color: #00c853; 
-      font-size: 40px; 
-      font-weight: bold; 
-      margin-bottom: 30px;
-      font-family: monospace; 
-    }
-    
-    /* 刷新按钮 */
-    #refreshBtn { 
-      padding: 12px 40px; 
-      background: #1a3d96; 
-      color: #fff; 
-      border: 2px solid #5c85e6; 
-      border-radius: 30px; 
-      font-size: 18px; 
-      cursor: pointer; 
-      outline: none;
-      transition: all 0.2s;
-    }
-    #refreshBtn:active { background: #0d2259; transform: scale(0.95); }
-  </style>
-  <script src="https://macaujc.com/js/NodePlayer.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>现场打卡水印</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            margin: 0;
+            padding: 20px 16px 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .header h1 {
+            font-size: 22px;
+            color: #1e293b;
+            margin-bottom: 8px;
+            margin-top: 0;
+        }
+        .header p {
+            color: #64748b;
+            font-size: 13px;
+            margin: 0;
+            line-height: 1.6;
+        }
+        .upload-area {
+            background: white;
+            border: 2px dashed #cbd5e1;
+            border-radius: 16px;
+            padding: 40px 20px;
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .upload-area:active {
+            background-color: #f8fafc;
+            border-color: #3b82f6;
+        }
+        .upload-area input[type="file"] {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .upload-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+        }
+        .upload-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #3b82f6;
+            margin-bottom: 6px;
+        }
+        .upload-hint {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+        
+        .preview-section {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            margin-top: 24px;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .gallery {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .img-card {
+            background: white;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            position: relative;
+        }
+        .img-card img {
+            width: 100%;
+            display: block;
+            height: auto;
+        }
+        .img-badge {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            backdrop-filter: blur(4px);
+        }
+        
+        .btn-share {
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-share:active {
+            background-color: #2563eb;
+            transform: translateY(1px);
+        }
+        
+        .btn-reset {
+            background-color: white;
+            color: #64748b;
+            border: 1px solid #cbd5e1;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 4px;
+        }
+        .btn-reset:active {
+            background-color: #f1f5f9;
+        }
+
+        .loading {
+            display: none;
+            color: #3b82f6;
+            font-weight: 600;
+            margin-top: 20px;
+            font-size: 15px;
+        }
+        
+        .tips {
+            font-size: 12px;
+            color: #64748b;
+            text-align: center;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+    </style>
 </head>
 <body>
-  
-  <div id="player-container">
-    <canvas id="video"></canvas>
-    
-    <!-- 居中控制面板 -->
-    <div id="center-panel">
-      <div id="countdown-title">距离 21:33 开播还有</div>
-      <div id="countdown-box">--:--:--</div>
-      <button id="refreshBtn">🔄 刷新重连</button>
+
+    <div class="header">
+        <h1>🟟 现场打卡水印</h1>
+        <p>地点固定：广州市海珠区瑞海新村<br>时间生成：15:00 - 15:20 (按顺序递增)</p>
     </div>
-  </div>
 
-  <script>
-    // ================= 1. 永远在动的倒计时 =================
-    function updateClock() {
-      const now = new Date();
-      const target = new Date();
-      
-      // 设定目标时间为当天的 21:33:00
-      target.setHours(21, 33, 0, 0); 
-      
-      let diff = target.getTime() - now.getTime();
+    <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept="image/*" multiple>
+        <div class="upload-icon">🟟</div>
+        <div class="upload-text">点击选择照片 (最多6张)</div>
+        <div class="upload-hint">请一次性多选，系统会自动排布时间</div>
+    </div>
 
-      // 【关键修复】如果现在的时间已经过了 21:33，就倒数明天的 21:33
-      if (diff < 0) {
-          target.setDate(target.getDate() + 1);
-          diff = target.getTime() - now.getTime();
-      }
+    <div class="loading" id="loadingText">正在生成水印，请稍候...</div>
 
-      // 计算时分秒
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      
-      // 格式化补零
-      const pad = (num) => num.toString().padStart(2, '0');
-      
-      // 显示在页面上
-      document.getElementById('countdown-box').innerText = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    <div class="preview-section" id="previewSection">
+        <div class="gallery" id="gallery"></div>
+        
+        <button class="btn-share" id="shareBtn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                <polyline points="16 6 12 2 8 6"></polyline>
+                <line x1="12" y1="2" x2="12" y2="15"></line>
+            </svg>
+            一键保存全部到相册
+        </button>
+        <div class="tips">点击上方按钮，在弹出的菜单中选择“存储 X 张图像”即可全部保存</div>
+        
+        <button class="btn-reset" id="resetBtn">重新选择图片</button>
+    </div>
+
+<script>
+    // --- 配置区 ---
+    const LOCATION = "广州市海珠区瑞海新村";
+    const START_MINUTES = 15 * 60; // 15:00 (900)
+    const END_MINUTES = 15 * 60 + 20; // 15:20 (920)
+    const MIN_GAP = 3; // 最小间隔 3 分钟
+    const MAX_IMAGES = 6; // 最多 6 张
+
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const previewSection = document.getElementById('previewSection');
+    const gallery = document.getElementById('gallery');
+    const loadingText = document.getElementById('loadingText');
+    const shareBtn = document.getElementById('shareBtn');
+    const resetBtn = document.getElementById('resetBtn');
+
+    let generatedBlobs = []; // 保存生成的 Blob 数据，用于分享保存
+
+    // --- 时间生成算法 ---
+    function generateTimes(count) {
+        if (count === 0) return [];
+        
+        const totalWindow = END_MINUTES - START_MINUTES; 
+        const minRequiredSpan = (count - 1) * MIN_GAP;
+        
+        let remainingFlex = totalWindow - minRequiredSpan;
+        let intervals = [];
+        
+        for (let i = 0; i < count - 1; i++) {
+            let maxAdd = remainingFlex;
+            let add = 0;
+            if (i === count - 2) {
+                add = maxAdd; 
+            } else {
+                add = Math.random() * (maxAdd / (count - 1 - i)); 
+            }
+            let addSeconds = Math.floor(add * 60 * Math.random()); 
+            intervals.push({ minutes: MIN_GAP, extraSeconds: addSeconds });
+            remainingFlex -= (addSeconds / 60);
+            if (remainingFlex < 0) remainingFlex = 0;
+        }
+
+        let times = [];
+        let currentMinutes = START_MINUTES;
+        
+        for (let i = 0; i < count; i++) {
+            let startExtraSec = i === 0 ? Math.floor(Math.random() * 59) : 0;
+            let totalSeconds = (currentMinutes * 60) + startExtraSec;
+            
+            let h = Math.floor(totalSeconds / 3600) % 24;
+            let m = Math.floor((totalSeconds % 3600) / 60);
+            
+            times.push({
+                h: String(h).padStart(2, '0'),
+                m: String(m).padStart(2, '0')
+            });
+
+            if (i < count - 1) {
+                let gapM = intervals[i].minutes;
+                let gapS = intervals[i].extraSeconds;
+                currentMinutes += gapM + (gapS / 60);
+            }
+        }
+
+        // 兜底防止超过 15:20
+        let lastTime = times[times.length - 1];
+        if (parseInt(lastTime.h) === 15 && parseInt(lastTime.m) > 20) {
+            lastTime.m = "20";
+        }
+
+        return times;
     }
-    
-    // 立即执行一次
-    updateClock();
-    // 每一秒执行一次
-    setInterval(updateClock, 1000);
 
-    // ================= 2. 播放器逻辑 =================
-    let player = null;
-    const canvas = document.getElementById('video');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const panel = document.getElementById('center-panel');
-    const url = "https://play8398.lianwin88.com/live/mosixmark.flv";
-    let resetTimer = null;
+    // --- 绘制水印 ---
+    function processImage(file, timeObj) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            const reader = new FileReader();
+            
+            reader.onload = (e) => {
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // 画布尺寸 = 原图尺寸，绝对不压缩
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // 根据原图宽度自适应字体大小 (以 800 宽为基准)
+                    const scale = canvas.width / 800;
+                    const largeFontSize = Math.max(60, 90 * scale); 
+                    const smallFontSize = Math.max(20, 26 * scale); 
+                    
+                    // 居中下方位
+                    const centerX = canvas.width / 2;
+                    // 距离底部留出一定空间
+                    const bottomY = canvas.height - (smallFontSize * 3);
+                    
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'bottom';
+                    
+                    // 黑色阴影保证清晰
+                    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                    ctx.shadowBlur = 12 * scale;
+                    ctx.shadowOffsetX = 2 * scale;
+                    ctx.shadowOffsetY = 2 * scale;
+                    
+                    // 1. 大字时间
+                    ctx.font = `500 ${largeFontSize}px -apple-system, sans-serif`;
+                    ctx.fillStyle = '#ffffff';
+                    const timeString = `${timeObj.h}:${timeObj.m}`;
+                    const largeY = bottomY - (smallFontSize * 1.8); 
+                    ctx.fillText(timeString, centerX, largeY);
+                    
+                    // 2. 小字日期与地点
+                    const today = new Date();
+                    const y = today.getFullYear();
+                    const mo = String(today.getMonth() + 1).padStart(2, '0');
+                    const d = String(today.getDate()).padStart(2, '0');
+                    const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+                    const weekStr = weekDays[today.getDay()];
+                    
+                    const dateString = `${y}.${mo}.${d} ${weekStr}`;
+                    const fullSmallText = `${dateString} 🟟 ${LOCATION}`;
+                    
+                    ctx.font = `500 ${smallFontSize}px -apple-system, sans-serif`;
+                    ctx.fillText(fullSmallText, centerX, bottomY);
+                    
+                    // 3. 右下角极小字伪装
+                    ctx.shadowColor = 'transparent';
+                    ctx.font = `400 ${smallFontSize * 0.8}px -apple-system, sans-serif`;
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+                    ctx.textAlign = 'right';
+                    ctx.fillText('水印相机', canvas.width - (20 * scale), canvas.height - (20 * scale));
 
-    function resetBtn() {
-      refreshBtn.innerText = "🔄 刷新重连";
-      refreshBtn.style.background = "#1a3d96";
-      refreshBtn.style.cursor = "pointer";
+                    // 生成 JPG 格式（苹果分享存图兼容性最好）
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        resolve({ blob, url, timeString });
+                    }, 'image/jpeg', 0.95);
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
     }
 
-    function initPlayer() {
-      refreshBtn.innerText = "⏳ 正在连接...";
-      refreshBtn.style.background = "#555";
-      refreshBtn.style.cursor = "not-allowed";
+    // --- 文件选择监听 ---
+    fileInput.addEventListener('change', async (e) => {
+        let files = Array.from(e.target.files);
+        if (files.length === 0) return;
+        
+        // 超过6张截断
+        if (files.length > MAX_IMAGES) {
+            alert(`系统检测到超过 ${MAX_IMAGES} 张图片，已为您自动保留前 ${MAX_IMAGES} 张。`);
+            files = files.slice(0, MAX_IMAGES);
+        }
 
-      // 3秒后强制恢复按钮
-      clearTimeout(resetTimer);
-      resetTimer = setTimeout(() => {
-        resetBtn();
-      }, 3000);
+        uploadArea.style.display = 'none';
+        previewSection.style.display = 'flex';
+        gallery.innerHTML = '';
+        loadingText.style.display = 'block';
+        shareBtn.style.display = 'none';
+        generatedBlobs = [];
 
-      if (player) {
-        try { player.stop(); player.clearView(); player = null; } catch (e) {}
-      }
-      
-      player = new NodePlayer();
-      player.setView(canvas);
-      
-      player.on('start', () => {
-        panel.style.display = 'none';
-        clearTimeout(resetTimer);
-        resetBtn();
-      });
+        const times = generateTimes(files.length);
 
-      player.on('error', (e) => {
-        panel.style.display = 'flex';
-        clearTimeout(resetTimer);
-        resetBtn();
-      });
+        try {
+            for (let i = 0; i < files.length; i++) {
+                const result = await processImage(files[i], times[i]);
+                generatedBlobs.push(result.blob); // 保存 blob 用于一键分享
+                
+                const card = document.createElement('div');
+                card.className = 'img-card';
+                card.innerHTML = `
+                    <img src="${result.url}" alt="打卡图">
+                    <div class="img-badge">${times[i].h}:${times[i].m}</div>
+                `;
+                gallery.appendChild(card);
+            }
 
-      player.start(url);
-    }
-
-    refreshBtn.addEventListener('click', () => {
-      panel.style.display = 'flex';
-      initPlayer();
+            loadingText.style.display = 'none';
+            shareBtn.style.display = 'flex';
+            shareBtn.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"></path>
+                    <polyline points="16 6 12 2 8 6"></polyline>
+                    <line x1="12" y1="2" x2="12" y2="15"></line>
+                </svg>
+                一键保存 ${files.length} 张到相册
+            `;
+            
+        } catch (error) {
+            alert('图片处理失败，请重试');
+            console.error(error);
+            loadingText.style.display = 'none';
+        }
+        
+        fileInput.value = '';
     });
 
-    initPlayer();
-  </script>
+    // --- 苹果一键分享功能 ---
+    shareBtn.addEventListener('click', async () => {
+        if (generatedBlobs.length === 0) return;
+
+        // 检查浏览器是否支持分享文件
+        if (navigator.canShare && navigator.canShare({ files: generatedBlobs.map((b, i) => new File([b], `打卡_${i+1}.jpg`, { type: 'image/jpeg' })) })) {
+            try {
+                const filesToShare = generatedBlobs.map((b, i) => new File([b], `打卡_${i+1}.jpg`, { type: 'image/jpeg' }));
+                await navigator.share({
+                    files: filesToShare,
+                    title: '现场打卡照片',
+                    text: '已生成带时间地点的打卡图片'
+                });
+            } catch (err) {
+                // 用户取消分享会报错，直接忽略即可
+                console.log('分享取消或失败', err);
+            }
+        } else {
+            alert('您的浏览器暂不支持一键保存多张，请长按图片单张保存。');
+        }
+    });
+
+    // --- 重置 ---
+    resetBtn.addEventListener('click', () => {
+        previewSection.style.display = 'none';
+        uploadArea.style.display = 'block';
+        gallery.innerHTML = '';
+        generatedBlobs = [];
+        fileInput.value = '';
+    });
+</script>
 </body>
 </html>
